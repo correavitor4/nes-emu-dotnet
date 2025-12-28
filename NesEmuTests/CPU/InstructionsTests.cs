@@ -1,6 +1,6 @@
 namespace NesEmuTests.CPU;
 
-public class MatchOpcodeTests
+public class InstructionsTests
 {
     [Fact]
     public void TestLDA__WithPositiveValue__ShouldLoadValueAndSetFlags()

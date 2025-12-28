@@ -12,14 +12,14 @@ public class InstructionsTests
         program[1] = 10;
         program[2] = 0x00; // stop condition
         var cpu = new NesEmu.CPU.CPU(program);
-        
+
         // Act
-       cpu.Interpret();
-       
-       // Assert
-       Assert.Equal(10, cpu.GetRegisterA());
-       Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b0000_0010); // status register not equals 0
-       Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b1000_0000); // status register non negative
+        cpu.Interpret();
+
+        // Assert
+        Assert.Equal(10, cpu.GetRegisterA());
+        AssertStatusRegisterEqualZeroFlag(cpu, false);
+        AssertStatusRegisterEqualNegativeFlag(cpu, false);
     }
 
     [Fact]
@@ -31,14 +31,14 @@ public class InstructionsTests
         program[1] = 0b1000_0010;
         program[2] = 0x00;
         var cpu = new NesEmu.CPU.CPU(program);
-        
+
         // Act
         cpu.Interpret();
-        
+
         // Assert
         Assert.Equal(0b1000_0010, cpu.GetRegisterA());
-        Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b0000_0010); // status register not equals zero
-        Assert.Equal(0b1000_0000, cpu.GetRegisterStatus() & 0b1000_0000); // status register equals negative 
+        AssertStatusRegisterEqualZeroFlag(cpu, false);
+        AssertStatusRegisterEqualNegativeFlag(cpu, true);
     }
 
     [Fact]
@@ -50,13 +50,39 @@ public class InstructionsTests
         program[1] = 0;
         program[2] = 0x00;
         var cpu = new NesEmu.CPU.CPU(program);
-        
+
         // Act
         cpu.Interpret();
-        
+
         // Assert
         Assert.Equal(0b0000_0000, cpu.GetRegisterA());
-        Assert.Equal(0b0000_0010, cpu.GetRegisterStatus() & 0b0000_0010); // Status register equals zero
-        Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b1000_0000); // Status register non negative
+        AssertStatusRegisterEqualZeroFlag(cpu, true);
+        AssertStatusRegisterEqualNegativeFlag(cpu, false);
     }
+
+    #region Helpers
+
+    private void AssertStatusRegisterEqualZeroFlag(NesEmu.CPU.CPU cpu, bool expected)
+    {
+        if (expected)
+        {
+            Assert.Equal(0b0000_0010, cpu.GetRegisterStatus() & 0b0000_0010); // Status register equals zero
+            return;
+        }
+
+        Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b0000_0010); // status register not equals zero
+    }
+
+    private void AssertStatusRegisterEqualNegativeFlag(NesEmu.CPU.CPU cpu, bool expected)
+    {
+        if (expected is false)
+        {
+            Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b1000_0000); // Status register non negative
+            return;
+        }
+        
+        Assert.Equal(0b1000_0000, cpu.GetRegisterStatus() & 0b1000_0000); // status register equals negative 
+    }
+    
+    #endregion
 }

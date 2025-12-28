@@ -2,6 +2,7 @@ namespace NesEmuTests.CPU;
 
 public class InstructionsTests
 {
+    #region LDA
     [Fact]
     public void TestLDA__WithPositiveValue__ShouldLoadValueAndSetFlags()
     {
@@ -59,7 +60,70 @@ public class InstructionsTests
         AssertStatusRegisterEqualZeroFlag(cpu, true);
         AssertStatusRegisterEqualNegativeFlag(cpu, false);
     }
+    
+    #endregion
 
+    #region TAX
+
+    [Fact]
+    public void Test_TAX__WithPositiveValue__ShouldLoadValueAndSetFlags()
+    {
+        // Arrange
+        var program = new byte[10];
+        program[0] = 0xA9;
+        program[1] = 0b0000_00101;
+        program[2] = 0xAA;
+        var cpu = new NesEmu.CPU.CPU(program);
+        
+        // Act
+        cpu.Interpret();
+        
+        //
+        Assert.Equal(0b0000_00101, cpu.GetRegisterA());
+        AssertStatusRegisterEqualNegativeFlag(cpu, false);
+        AssertStatusRegisterEqualZeroFlag(cpu, false);
+    }
+
+    [Fact]
+    public void Test_TAX__WithNegativeValue__ShouldLoadValueAndSetFlags()
+    {
+        // Arrange
+        var program = new byte[10];
+        program[0] = 0xA9;
+        program[1] = 0b1000_0101;
+        program[2] = 0xAA;
+        var cpu = new NesEmu.CPU.CPU(program);
+
+        // Act
+        cpu.Interpret();
+
+        //
+        Assert.Equal(0b1000_0101, cpu.GetRegisterA());
+        AssertStatusRegisterEqualNegativeFlag(cpu, true);
+        AssertStatusRegisterEqualZeroFlag(cpu, false);
+    }
+
+    [Fact]
+    public void Test_TAX__WithZeroValue__ShouldLoadValueAndSetFlags()
+    {
+        // Arrange
+        var program = new byte[10];
+        program[0] = 0xA9;
+        program[1] = 0;
+        program[2] = 0xAA;
+        var cpu = new NesEmu.CPU.CPU(program);
+
+        // Act
+        cpu.Interpret();
+
+        //
+        Assert.Equal(0, cpu.GetRegisterA());
+        AssertStatusRegisterEqualNegativeFlag(cpu, false);
+        AssertStatusRegisterEqualZeroFlag(cpu, true);
+    }
+
+    #endregion
+    
     #region Helpers
 
     private void AssertStatusRegisterEqualZeroFlag(NesEmu.CPU.CPU cpu, bool expected)

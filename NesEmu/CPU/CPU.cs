@@ -3,6 +3,7 @@ namespace NesEmu.CPU;
 public class CPU
 {
     private byte _registerA = 0;
+    private byte _registerX = 0;
     private byte _status = 0;
     private ushort _programCounter = 0;
     private readonly byte[] _program;
@@ -73,6 +74,7 @@ public class CPU
     {
         _instructions.Add(0xA9, Lda);
         _instructions.Add(0x00, Brk);
+        _instructions.Add(0xAA, Tax);
     }
 
     /// <summary>
@@ -94,6 +96,17 @@ public class CPU
     private void Brk()
     {
         return;
+    }
+
+    /// <summary>
+    /// TAX instruction. It copy value from register_a to register_x
+    /// </summary>
+    private void Tax()
+    {
+        _registerX = _registerA;
+        
+        RegisterStatusSetZeroFlag(_registerX);
+        RegisterStatusSetNegativeFlag(_registerX);
     }
 
     #endregion

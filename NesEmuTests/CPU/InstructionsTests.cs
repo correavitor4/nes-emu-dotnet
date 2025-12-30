@@ -1,3 +1,5 @@
+using NesEmu.Memory;
+
 namespace NesEmuTests.CPU;
 
 public class InstructionsTests
@@ -12,7 +14,7 @@ public class InstructionsTests
         program[0] = 0xA9;
         program[1] = 10;
         program[2] = 0x00; // stop condition
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
 
         // Act
         cpu.Interpret();
@@ -31,7 +33,7 @@ public class InstructionsTests
         program[0] = 0xA9;
         program[1] = 0b1000_0010;
         program[2] = 0x00;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
 
         // Act
         cpu.Interpret();
@@ -50,7 +52,7 @@ public class InstructionsTests
         program[0] = 0xA9;
         program[1] = 0;
         program[2] = 0x00;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
 
         // Act
         cpu.Interpret();
@@ -73,7 +75,7 @@ public class InstructionsTests
         program[0] = 0xA9;
         program[1] = 0b0000_00101;
         program[2] = 0xAA;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
         
         // Act
         cpu.Interpret();
@@ -92,7 +94,7 @@ public class InstructionsTests
         program[0] = 0xA9;
         program[1] = 0b1000_0101;
         program[2] = 0xAA;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
 
         // Act
         cpu.Interpret();
@@ -111,7 +113,7 @@ public class InstructionsTests
         program[0] = 0xA9;
         program[1] = 0;
         program[2] = 0xAA;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
 
         // Act
         cpu.Interpret();
@@ -139,7 +141,7 @@ public class InstructionsTests
         program[1] = previousValue;
         program[2] = 0xAA;
         program[3] = 0xE8;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
         
         // Act
         cpu.Interpret();
@@ -160,7 +162,7 @@ public class InstructionsTests
         program[2] = 0xAA;
         program[3] = 0xE8;
         program[4] = 0xE8;
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
         
         
         // Act
@@ -186,7 +188,7 @@ public class InstructionsTests
         program[3] = 0xE8;
         program[4] = 0x00;
         
-        var cpu = new NesEmu.CPU.CPU(program);
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
         
         
         // Act

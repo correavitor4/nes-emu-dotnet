@@ -5,24 +5,25 @@ public class CPU
     private byte _registerA = 0;
     private byte _registerX = 0;
     private byte _status = 0;
-    private ushort _programCounter = 0;
-    private readonly byte[] _program;
-    private readonly Dictionary<byte, Action> _instructions = new Dictionary<byte, Action>();
+    public ushort ProgramCounter = 0;
 
-    public CPU(byte[] program)
+    private readonly Memory.NesMemory _nesMemory;
+    private Dictionary<byte, Action> _instructions = new Dictionary<byte, Action>();
+
+    public CPU(Memory.NesMemory nesMemory)
     {
-        this._program = program;
+        this._nesMemory = nesMemory;
         RegisterInstructions();
     }
 
     public void Interpret()
     {
-        _programCounter = 0;
+        ProgramCounter = 0;
 
-        while (_programCounter < _program.Length)
+        while (ProgramCounter < _nesMemory.Length)
         {
-            var opcode = _program[_programCounter];
-            _programCounter++;
+            var opcode = _nesMemory.Read(ProgramCounter);
+            ProgramCounter++;
 
             _instructions[opcode]();
         }
@@ -46,7 +47,7 @@ public class CPU
     }
 
     #endregion
-
+    
     #region RegisterStatusHandlers
 
     private void RegisterStatusSetZeroFlag(byte value)
@@ -70,11 +71,6 @@ public class CPU
 
         _status &= 0b0111_1111;
     }
-
-    #endregion
-
-    #region Instructions
-
     private void RegisterInstructions()
     {
         _instructions.Add(0xA9, Lda);
@@ -88,8 +84,8 @@ public class CPU
     /// </summary>
     private void Lda()
     {
-        var param = _program[_programCounter];
-        _programCounter++;
+        var param = _nesMemory.Read(ProgramCounter);
+        ProgramCounter++;
         _registerA = param;
     
         RegisterStatusSetZeroFlag(_registerA);

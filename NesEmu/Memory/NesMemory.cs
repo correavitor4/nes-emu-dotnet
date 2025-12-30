@@ -34,6 +34,8 @@ public class NesMemory(int memorySizeInBytes = 0xFFFF)
         MemorySpace[address] = value;
     }
 
+    #region Static 
+    
     public static NesMemory FromBytesArray(byte[] array)
     {
         var mem = new NesMemory(array.Length);
@@ -44,4 +46,7 @@ public class NesMemory(int memorySizeInBytes = 0xFFFF)
         
         return mem;
     }
+    
+    #endregion
+    
 }

@@ -29,6 +29,32 @@ public class CPU
         }
     }
 
+    private void Reset()
+    {
+        ResetAllRegisters();
+        ResetRegisterStatus();
+
+        ProgramCounter = _nesMemory.ReadLittleEndian(0xFFCC);
+    }
+
+    private void Load()
+    {
+        _nesMemory.WriteLittleEndian(0xFFCC, 0x8000);
+    }
+
+    public void LoadAndInterpret()
+    {
+        Load();
+        Reset();
+        Interpret();
+    }
+
+    private void ResetAllRegisters()
+    {
+        _registerA = 0;
+        _registerX = 0;
+    }
+
     #region Getters
 
     public byte GetRegisterX()
@@ -116,6 +142,11 @@ public class CPU
         _registerX++;
         RegisterStatusSetNegativeFlag(_registerX);
         RegisterStatusSetZeroFlag(_registerX);
+    }
+
+    private void ResetRegisterStatus()
+    {
+        _status = 0x00;
     }
 
     #endregion

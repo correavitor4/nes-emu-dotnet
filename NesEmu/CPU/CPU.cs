@@ -30,6 +30,11 @@ public class CPU
 
     #region Getters
 
+    public byte GetRegisterX()
+    {
+        return _registerX;
+    }
+    
     public byte GetRegisterStatus()
     {
         return _status;
@@ -75,6 +80,7 @@ public class CPU
         _instructions.Add(0xA9, Lda);
         _instructions.Add(0x00, Brk);
         _instructions.Add(0xAA, Tax);
+        _instructions.Add(0xE8, Inx);
     }
 
     /// <summary>
@@ -107,6 +113,13 @@ public class CPU
         
         RegisterStatusSetZeroFlag(_registerX);
         RegisterStatusSetNegativeFlag(_registerX);
+    }
+
+    private void Inx()
+    {
+        _registerX++;
+        RegisterStatusSetNegativeFlag(_registerX);
+        RegisterStatusSetZeroFlag(_registerX);
     }
 
     #endregion

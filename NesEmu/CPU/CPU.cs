@@ -61,7 +61,7 @@ public class CPU
     {
         return _registerX;
     }
-    
+
     public byte GetRegisterStatus()
     {
         return _status;
@@ -73,7 +73,7 @@ public class CPU
     }
 
     #endregion
-    
+
     #region RegisterStatusHandlers
 
     private void RegisterStatusSetZeroFlag(byte value)
@@ -97,13 +97,23 @@ public class CPU
 
         _status &= 0b0111_1111;
     }
+
     private void RegisterInstructions()
     {
-        _instructions.Add(0xA9, Lda);
+        _instructions.Add(0xA9, () => Lda());
         _instructions.Add(0x00, Brk);
         _instructions.Add(0xAA, Tax);
         _instructions.Add(0xE8, Inx);
     }
+
+    private void ResetRegisterStatus()
+    {
+        _status = 0x00;
+    }
+
+    #endregion
+
+    #region Instructions
 
     /// <summary>
     /// LDA instruction. It loads a value in memory and fill register_a value with it
@@ -113,7 +123,8 @@ public class CPU
         var param = _nesMemory.Read(ProgramCounter);
         ProgramCounter++;
         _registerA = param;
-    
+
+
         RegisterStatusSetZeroFlag(_registerA);
         RegisterStatusSetNegativeFlag(_registerA);
     }
@@ -132,7 +143,7 @@ public class CPU
     private void Tax()
     {
         _registerX = _registerA;
-        
+
         RegisterStatusSetZeroFlag(_registerX);
         RegisterStatusSetNegativeFlag(_registerX);
     }
@@ -142,11 +153,6 @@ public class CPU
         _registerX++;
         RegisterStatusSetNegativeFlag(_registerX);
         RegisterStatusSetZeroFlag(_registerX);
-    }
-
-    private void ResetRegisterStatus()
-    {
-        _status = 0x00;
     }
 
     #endregion

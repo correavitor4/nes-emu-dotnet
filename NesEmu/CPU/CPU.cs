@@ -1,9 +1,12 @@
+using System.ComponentModel;
+
 namespace NesEmu.CPU;
 
 public class CPU
 {
     private byte _registerA = 0;
-    private byte _registerX = 0;
+    private byte _registerX  = 0;
+    private byte _registerY = 0;
     private byte _status = 0;
     public ushort ProgramCounter = 0;
 
@@ -70,6 +73,20 @@ public class CPU
     public byte GetRegisterA()
     {
         return _registerA;
+    }
+
+    #endregion
+
+    #region Setters
+
+    public void SetRegisterX(byte value)
+    {
+        _registerX = value;
+    }
+    
+    public void SetRegisterY(byte value)
+    {
+        _registerY = value;
     }
 
     #endregion
@@ -153,6 +170,103 @@ public class CPU
         _registerX++;
         RegisterStatusSetNegativeFlag(_registerX);
         RegisterStatusSetZeroFlag(_registerX);
+    }
+
+    #endregion
+
+    #region Addressing
+
+    public ushort GetOperandAddress(AddressingMode mode)
+    {
+        switch (mode)
+        {
+            case AddressingMode.Immediate:
+                return ProgramCounter;
+            case AddressingMode.ZeroPage:
+                return GetAddressZeroPage();
+            case AddressingMode.Absolute:
+                return GetAddressAbsolute();
+            case AddressingMode.ZeroPageX:
+                return GetZeroPageX();
+            case AddressingMode.ZeroPageY:
+                return GetZeroPageY();
+            case AddressingMode.AbsoluteX:
+                return GetAbsoluteX();
+            case AddressingMode.AbsoluteY:
+                return GetAbsoluteY();
+            case AddressingMode.IndirectX:
+                return GetIndirectX();
+
+            case AddressingMode.IndirectY:
+                return GetIndirectY();
+            default:
+                throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+        }
+    }
+
+    private ushort GetIndirectX()
+    {
+        var baseAddr = _nesMemory.Read(ProgramCounter);
+        var ptr = WappingAdd(baseAddr, _registerX);
+
+        var lo = _nesMemory.Read(ptr);
+        var hi = _nesMemory.Read(WappingAdd(ptr, 1));
+        return (ushort)(hi << 8 | lo);
+    }
+
+    private ushort GetIndirectY()
+    {
+        var baseAddr = _nesMemory.Read(ProgramCounter); // Base ZP
+
+        var lo = _nesMemory.Read(baseAddr);
+        var hi = _nesMemory.Read(WappingAdd(baseAddr, (byte)1));
+        var ptr = (ushort)((hi << 8) | lo); // Ponteiro 16-bit
+
+        return WappingAdd(ptr, _registerY); // ptr + Y
+    }
+
+    private ushort GetAbsoluteX()
+    {
+        var baseAddr = _nesMemory.ReadLittleEndian(ProgramCounter);
+        return WappingAdd(baseAddr, _registerX);
+    }
+
+    private ushort GetAbsoluteY()
+    {
+        var baseAddr = _nesMemory.ReadLittleEndian(ProgramCounter);
+        return WappingAdd(baseAddr, _registerY);
+    }
+
+    private byte GetZeroPageY()
+    {
+        var baseAddr = _nesMemory.Read(ProgramCounter);
+        return WappingAdd(baseAddr, _registerY);
+    }
+
+    private byte GetZeroPageX()
+    {
+        var baseAddr = _nesMemory.Read(ProgramCounter);
+        return WappingAdd(baseAddr, _registerX);
+    }
+
+    private byte WappingAdd(byte a, byte b)
+    {
+        return (byte)(a + b);
+    }
+
+    private ushort WappingAdd(ushort a, byte b)
+    {
+        return (ushort)(a + b);
+    }
+
+    private byte GetAddressZeroPage()
+    {
+        return _nesMemory.Read(ProgramCounter);
+    }
+
+    private ushort GetAddressAbsolute()
+    {
+        return _nesMemory.ReadLittleEndian(ProgramCounter);
     }
 
     #endregion

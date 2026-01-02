@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using NesEmu.CPU;
 using NesEmu.Memory;
 
 namespace NesEmuTests.CPU;
@@ -173,6 +175,235 @@ public class InstructionsTests
         Assert.Equal(0x01, cpu.GetRegisterX());
     }
     
+    #endregion
+
+    #region Addressing
+
+    [Fact]
+    public void TestGetOperand__WithImmediateMode__ShouldResultProgramCounterItself()
+    {
+        // Arrange
+        var program = new byte[10];
+        program[0] = 0x0A;
+        var memory = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(memory);
+
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.Immediate);
+        
+        // Assert
+        Assert.Equal(0x00, res);
+    }
+
+    [Fact]
+    public void TestGetOperand__WithZeroPageMode__ShouldReturnOperandAddress()
+    {
+        // Arrange
+        var program = new byte[10];
+        program[0] = 0xA9;
+        program[1] = 0x06;
+        program[6]  = 0xA7;
+        
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.ProgramCounter = 1;
+        
+        
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.ZeroPage);
+        
+        
+        // Assert
+        Assert.Equal(0x06, res);
+    }
+
+
+    [Fact]
+    public void TestGetOperand__WithZeroAbsoluteMode__ShouldReturnOperandAddress()
+    {
+        // Arrange
+        var program = new byte[1024];
+        program[0] = 0xA9;
+        program[1] = 0xB1;
+        program[2] = 0x02;
+        program[689]  = 0xA7;
+        
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.ProgramCounter = 1;
+        
+        
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.Absolute);
+        
+        
+        // Assert
+        Assert.Equal(0x02B1, res);
+    }
+
+    [Theory]
+    [InlineData(0x10, 0x00, 0x10)]
+    [InlineData(0x10, 0x05, 0x15)]
+    [InlineData(0xFF, 0x01, 0x00)]
+    [InlineData(0xFE, 0x05, 0x03)]
+    public void TestGetOperand__WithZeroPageX__ShouldReturnOperandAddress(byte memoryAddress,
+        byte registerXInitialValue, byte expectedAddress)
+    {
+        // Arrange
+        var program = new byte[200];
+        program[1] = memoryAddress;
+        
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.SetRegisterX(registerXInitialValue);
+        cpu.ProgramCounter = 1;
+        
+        
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.ZeroPageX);
+
+
+        // Assert
+        Assert.Equal(res, expectedAddress);
+    }
+    
+    [Theory]
+    [InlineData(0x10, 0x00, 0x10)]
+    [InlineData(0x10, 0x05, 0x15)]
+    [InlineData(0xFF, 0x01, 0x00)]
+    [InlineData(0xFE, 0x05, 0x03)]
+    public void TestGetOperand__WithZeroPageY__ShouldReturnOperandAddress(byte memoryAddress,
+        byte registerYInitialValue, byte expectedAddress)
+    {
+        // Arrange
+        var program = new byte[200];
+        program[1] = memoryAddress;
+        
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.SetRegisterY(registerYInitialValue);
+        cpu.ProgramCounter = 1;
+        
+        
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.ZeroPageY);
+
+
+        // Assert
+        Assert.Equal(res, expectedAddress);
+    }
+    
+    
+    [Theory]
+    [InlineData(0x10, 0x00, 0x10)]
+    [InlineData(0x10, 0x05, 0x15)]
+    [InlineData(0x200, 0x00, 0x200)]
+    [InlineData(0x200, 0xC8, 0x2C8)]
+    [InlineData(0xFFFF, 0x01, 0x0000)]
+    [InlineData(0xFFFD, 0x05, 0x0002)]
+    
+    public void TestGetOperand__WithAbsoluteX__ShouldReturnOperandAddress(ushort memoryAddress,
+        byte registerXInitialValue, ushort expectedAddress)
+    {
+        // Arrange
+        var program = new byte[200];
+        program[1] = (byte)(memoryAddress & 0x00FF);
+        program[2] = (byte)((memoryAddress >> 8) & 0x00FF);
+        
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.SetRegisterX(registerXInitialValue);
+        cpu.ProgramCounter = 1;
+        
+        
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.AbsoluteX);
+
+
+        // Assert
+        Assert.Equal(res, expectedAddress);
+    }
+    
+    [Theory]
+    [InlineData(0x10, 0x00, 0x10)]
+    [InlineData(0x10, 0x05, 0x15)]
+    [InlineData(0x200, 0x00, 0x200)]
+    [InlineData(0x200, 0xC8, 0x2C8)]
+    [InlineData(0xFFFF, 0x01, 0x0000)]
+    [InlineData(0xFFFD, 0x05, 0x0002)]
+    
+    public void TestGetOperand__WithAbsoluteY__ShouldReturnOperandAddress(ushort memoryAddress,
+        byte registerYInitialValue, ushort expectedAddress)
+    {
+        // Arrange
+        var program = new byte[200];
+        program[1] = (byte)(memoryAddress & 0x00FF);
+        program[2] = (byte)((memoryAddress >> 8) & 0x00FF);
+        
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.SetRegisterY(registerYInitialValue);
+        cpu.ProgramCounter = 1;
+        
+        
+        // Act
+        var res = cpu.GetOperandAddress(AddressingMode.AbsoluteY);
+
+
+        // Assert
+        Assert.Equal(res, expectedAddress);
+    }
+
+    [Theory]
+    [InlineData(0x40, 0x04, 0x5678)]  // base=0x40, X=0x04, ptr=0x44, vetor=0x7856→0x5678
+    [InlineData(0xFF, 0x01, 0x5678)]  // base=0xFF, X=0x01, ptr=0x00, vetor=0x7856→0x5678
+    [InlineData(0xFE, 0x01, 0x5678)]  // base=0xFE, X=0x01, ptr=0xFF, vetor=0x7856→0x5678
+    public void TestGetOperand__WithIndirectX__ShouldReturnOperandAddress(
+        byte baseAddr, byte registerX, ushort expectedFinalAddr)
+    {
+        // Arrange
+        var ptrAddr = (byte)(baseAddr + registerX);  // Ex: 40+04=44
+        var expectedLo = (byte)(expectedFinalAddr & 0xFF);        // LSB: 78
+        var expectedHi = (byte)((expectedFinalAddr >> 8) & 0xFF);  // MSB: 56
+    
+        var program = new byte[0xFFFF];
+        program[3] = baseAddr;                          // PC=1 lê base=40
+        program[ptrAddr] = expectedLo;                  // 44=78
+        program[(byte)(ptrAddr + 1)] = expectedHi;              // 45=56
+    
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.SetRegisterX(registerX);
+        cpu.ProgramCounter = 3;
+    
+        // Act
+        var result = cpu.GetOperandAddress(AddressingMode.IndirectX);
+    
+        // Assert
+        Assert.Equal(expectedFinalAddr, result);
+    }
+    
+    [Theory]
+    [InlineData(0x40, 0x04, 0x5678)]  // base=0x40, X=0x04, ptr=0x44, vetor=0x7856→0x5678
+    [InlineData(0xFF, 0x04, 0x5678)]  // base=0x40, X=0x04, ptr=0x44, vetor=0x7856→0x5678
+    [InlineData(0x40, 0x04, 0xFFFF)]  // base=0x40, X=0x04, ptr=0x44, vetor=0x7856→0x5678
+    public void TestGetOperand__WithIndirectY__ShouldReturnOperandAddress(
+        byte baseAddr, byte registerY, ushort expectedFinalAddr)
+    {
+        // Arrange
+        var expectedLo = (byte)(expectedFinalAddr & 0xFF);        // LSB: 78
+        var expectedHi = (byte)((expectedFinalAddr >> 8) & 0xFF);  // MSB: 56
+    
+        var program = new byte[0xFFFF];
+        program[3] = baseAddr;                          // PC=1 lê base=40
+        program[baseAddr] = expectedLo;                  // 44=78
+        program[(byte)(baseAddr + 1)] = expectedHi;              // 45=56
+    
+        var cpu = new NesEmu.CPU.CPU(NesMemory.FromBytesArray(program));
+        cpu.SetRegisterY(registerY);
+        cpu.ProgramCounter = 3;
+    
+        // Act
+        var result = cpu.GetOperandAddress(AddressingMode.IndirectY);
+    
+        // Assert
+        Assert.Equal((ushort)(expectedFinalAddr+registerY), result);
+    }
+
+
     #endregion
 
     #region LDA, TAX and INX workings together

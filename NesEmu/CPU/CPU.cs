@@ -5,7 +5,7 @@ namespace NesEmu.CPU;
 public class CPU
 {
     private byte _registerA = 0;
-    private byte _registerX  = 0;
+    private byte _registerX = 0;
     private byte _registerY = 0;
     private byte _status = 0;
     public ushort ProgramCounter = 0;
@@ -21,14 +21,25 @@ public class CPU
 
     public void Interpret()
     {
-        ProgramCounter = 0;
-
         while (ProgramCounter < _nesMemory.Length)
         {
             var opcode = _nesMemory.Read(ProgramCounter);
             ProgramCounter++;
 
             _instructions[opcode]();
+        }
+    }
+
+    //For testing
+    public void Interpret(int limit)
+    {
+        while (ProgramCounter < _nesMemory.Length && limit > 0)
+        {
+            var opcode = _nesMemory.Read(ProgramCounter);
+            ProgramCounter++;
+
+            _instructions[opcode]();
+            limit -= 1;
         }
     }
 
@@ -75,6 +86,11 @@ public class CPU
         return _registerA;
     }
 
+    public int GetRegisterY()
+    {
+        return _registerY;
+    }
+
     #endregion
 
     #region Setters
@@ -83,7 +99,7 @@ public class CPU
     {
         _registerX = value;
     }
-    
+
     public void SetRegisterY(byte value)
     {
         _registerY = value;
@@ -117,9 +133,23 @@ public class CPU
 
     private void RegisterInstructions()
     {
-        _instructions.Add(0xA9, () => Lda());
+        //LDA
+        _instructions.Add(0xA9, () => Lda(AddressingMode.Immediate));
+        _instructions.Add(0xA5, () => Lda(AddressingMode.ZeroPage));
+        _instructions.Add(0xB5, () => Lda(AddressingMode.ZeroPageX));
+        _instructions.Add(0xAD, () => Lda(AddressingMode.Absolute));
+        _instructions.Add(0xBD, () => Lda(AddressingMode.AbsoluteX));
+        _instructions.Add(0xB9, () => Lda(AddressingMode.AbsoluteY));
+        _instructions.Add(0xA1, () => Lda(AddressingMode.IndirectX));
+        _instructions.Add(0xB1, () => Lda(AddressingMode.IndirectY));
+
+        //BRK
         _instructions.Add(0x00, Brk);
+
+        //TAX
         _instructions.Add(0xAA, Tax);
+
+        // INX
         _instructions.Add(0xE8, Inx);
     }
 
@@ -135,12 +165,13 @@ public class CPU
     /// <summary>
     /// LDA instruction. It loads a value in memory and fill register_a value with it
     /// </summary>
-    private void Lda()
+    /// <param name="mode"></param>
+    public void Lda(AddressingMode mode)
     {
-        var param = _nesMemory.Read(ProgramCounter);
+        var addr = GetOperandAddress(mode);
         ProgramCounter++;
-        _registerA = param;
-
+        var value = _nesMemory.Read(addr);
+        _registerA = value;
 
         RegisterStatusSetZeroFlag(_registerA);
         RegisterStatusSetNegativeFlag(_registerA);

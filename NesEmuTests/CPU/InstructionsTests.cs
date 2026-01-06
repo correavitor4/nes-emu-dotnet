@@ -68,10 +68,10 @@ public class InstructionsTests
     }
 
     [Theory]
-    [InlineData(0xA5, AddressingMode.ZeroPage)]
-    [InlineData(0xB5, AddressingMode.ZeroPageX)]
-    [InlineData(0xAD, AddressingMode.Absolute)]
-    public void TestLDA__DifferentOpcodesLoadCorrectly(byte opcode, AddressingMode _)
+    [InlineData(0xA5, AddressingMode.ZeroPage,2)]
+    [InlineData(0xB5, AddressingMode.ZeroPageX,2)]
+    [InlineData(0xAD, AddressingMode.Absolute,3)]
+    public void TestLDA__DifferentOpcodesLoadCorrectly(byte opcode, AddressingMode _, int expectedSteppedByte)
     {
         // Arrange
         var program = new byte[0xFFFF];
@@ -88,10 +88,8 @@ public class InstructionsTests
     
         // Assert - Opcode certo = Lda com modo certo!
         Assert.Equal(0x55, cpu.GetRegisterA());  
-        Assert.Equal(2, cpu.ProgramCounter);     // Avançou 2 bytes ✓
+        Assert.Equal(expectedSteppedByte, cpu.ProgramCounter);     // Avançou x bytes ✓
     }
-
-
     
     
     #endregion
@@ -206,6 +204,96 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region ADC
+
+    [Theory]
+    [InlineData(0x69, 2)]
+    [InlineData(0x65, 2)]
+    [InlineData(0x75, 2)]
+    [InlineData(0x6D, 3)]
+    [InlineData(0x7D, 3)]
+    [InlineData(0x79, 3)]
+    [InlineData(0x61, 2)]
+    [InlineData(0x71, 2)]
+    public void TestAdc__WithDiferentOpcodes__ShouldStepProgramCounterCorrectly(byte opcode, int expectedStep)
+    {
+        // Arrange 
+        var program = new byte[0xFFFF];
+        program[0] = opcode;
+        var mem =  NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        
+        // Act
+        cpu.Interpret(limit:1);
+        
+        // Assert
+        Assert.Equal(expectedStep, cpu.ProgramCounter); // Considering PC starting with 0 
+    }
+
+    [Theory]
+    [InlineData(0x10, 0x53, 99)]
+    [InlineData(0xC8, 0x64, 0x2C)]
+    public void TestAdc__WithDiffentValues__ShouldAddToARegister(byte registerAInitialValue, byte valueToAdd, byte expectedValue)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xA9;
+        program[1] = registerAInitialValue;
+        program[2] = 0x69;
+        program[3] = valueToAdd;
+        
+        var mem =  NesMemory.FromBytesArray(program);
+        
+        var cpu = new NesEmu.CPU.CPU(mem);
+        
+        
+        // Act
+        cpu.Interpret(limit:2);
+        
+        
+        // Assert  
+        Assert.Equal(expectedValue, cpu.GetRegisterA());
+    }
+
+    [Theory]
+    [InlineData(0x50, 0x10, false, false, false, false)]
+    [InlineData(0x50, 0x50, false, false, true, true)]
+    [InlineData(0x50, 0x90, false, false, false, true)]
+    [InlineData(0x50, 0xD0, true, false, false, false)]
+    [InlineData(0xD0, 0x10, false, false, false, true)]
+    [InlineData(0xD0, 0x50, true, false, false, false)]
+    [InlineData(0xD0, 0x90, true, false, true, false)]
+    [InlineData(0xD0, 0xD0, true, false, false, true)]
+    [InlineData(0b_0001_0100, 0b_1001_0100, false, false, false, true)]
+    [InlineData(0b_1000_0000, 0b_1000_0000, true, true, true, false)]
+    public void TestAdc__WithDifferentValues__ShouldSetFlagsCorrectly(byte registerAInitialValue, byte valueToAdd,
+        bool expectedCarryFlag, bool expectedZeroFlag, bool expectedOverflowFlag, bool expectedNegativeFlag)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xA9;
+        program[1] = registerAInitialValue;
+        program[2] = 0x69;
+        program[3] = valueToAdd;
+        
+        var mem =  NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        
+        
+        // Act
+        cpu.Interpret(limit: 2);
+        
+        
+        // Assert
+        AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
+        AssertStatusRegisterEqualOverflowFlag(cpu, expectedOverflowFlag);
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+    }
+    
+    #endregion
+    
 
     #region Addressing
 
@@ -460,6 +548,28 @@ public class InstructionsTests
     #endregion
 
     #region Helpers
+    
+    private void AssertStatusRegisterEqualCarryFlag(NesEmu.CPU.CPU cpu, bool expected)
+    {
+        if (expected)
+        {
+            Assert.Equal(0b0000_0001, cpu.GetRegisterStatus() & 0b0000_0001); // Status register equals zero
+            return;
+        }
+
+        Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b0000_0001); // status register not equals zero
+    }
+    
+    private void AssertStatusRegisterEqualOverflowFlag(NesEmu.CPU.CPU cpu, bool expected)
+    {
+        if (expected)
+        {
+            Assert.Equal(0b0100_0000, cpu.GetRegisterStatus() & 0b0100_0000); // Status register equals zero
+            return;
+        }
+
+        Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b0100_0000); // status register not equals zero
+    }
 
     private void AssertStatusRegisterEqualZeroFlag(NesEmu.CPU.CPU cpu, bool expected)
     {

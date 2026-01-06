@@ -131,6 +131,41 @@ public class CPU
         _status &= 0b0111_1111;
     }
 
+    public void RegisterStatusSetOverFlowFlag(byte a, byte b)
+    {
+        var c6 = ((a & 0b0100_0000) == 0b0100_0000) &&
+                 ((b & 0b0100_0000) == 0b0100_0000); // C6 is true when both m6 and n6 equals 1
+        var m7 = (b & 0b1000_0000) == 0b1000_0000;
+        var n7 = ((a & 0b1000_0000) == 0b1000_0000);
+
+        var overflow = (!m7 & !n7 & c6) | (m7 & n7 & !c6);
+
+        if (overflow)
+        {
+            _status = (byte)(_status | 0b0100_0000);
+            return;
+        }
+
+        _status = (byte)(_status & 0b1011_1111);
+    }
+
+    public void RegisterStatusSetCarryBitFlag(byte a, byte b)
+    {
+        var c6 = ((a & 0b0100_0000) == 0b0100_0000) &&
+                 ((b & 0b0100_0000) == 0b0100_0000); // C6 is true when both m6 and n6 equals 1
+        var m7 = (b & 0b1000_0000) == 0b1000_0000;
+        var n7 = ((a & 0b1000_0000) == 0b1000_0000);
+
+        var carry = (c6 && m7) || (c6 && n7) || (m7 && n7); // carry bit equals one if at least 2 of 3 are true
+        if (carry)
+        {
+            _status = (byte)(_status | 0b0000_0001);
+            return;
+        }
+
+        _status = (byte)(_status & 0b1111_1110);
+    }
+
     private void RegisterInstructions()
     {
         //LDA
@@ -151,6 +186,18 @@ public class CPU
 
         // INX
         _instructions.Add(0xE8, Inx);
+        
+        //ADC
+        _instructions.Add(0x69, () => Adc(AddressingMode.Immediate));
+        _instructions.Add(0x65, () => Adc(AddressingMode.ZeroPage));
+        _instructions.Add(0x75, () => Adc(AddressingMode.ZeroPageX));
+        _instructions.Add(0x6D, () => Adc(AddressingMode.Absolute));
+        _instructions.Add(0x7D, () => Adc(AddressingMode.AbsoluteX));
+        _instructions.Add(0x79, () => Adc(AddressingMode.AbsoluteY));
+        _instructions.Add(0x61, () => Adc(AddressingMode.IndirectX));
+        _instructions.Add(0x71, () => Adc(AddressingMode.IndirectY));            
+
+        
     }
 
     private void ResetRegisterStatus()
@@ -169,12 +216,13 @@ public class CPU
     public void Lda(AddressingMode mode)
     {
         var addr = GetOperandAddress(mode);
-        ProgramCounter++;
         var value = _nesMemory.Read(addr);
         _registerA = value;
 
         RegisterStatusSetZeroFlag(_registerA);
         RegisterStatusSetNegativeFlag(_registerA);
+
+        ProgramCounter++;
     }
 
     /// <summary>
@@ -196,6 +244,10 @@ public class CPU
         RegisterStatusSetNegativeFlag(_registerX);
     }
 
+
+    /// <summary>
+    /// INX instruction. It increments register_x value
+    /// </summary>
     private void Inx()
     {
         _registerX++;
@@ -203,33 +255,63 @@ public class CPU
         RegisterStatusSetZeroFlag(_registerX);
     }
 
+    private void Adc(AddressingMode mode)
+    {
+        var operand = GetOperandAddress(mode);
+        var value = _nesMemory.Read(operand);
+
+        var tempA = _registerA;
+
+        _registerA = (byte)(_registerA + value); // Addition itself
+
+        RegisterStatusSetCarryBitFlag(tempA, value);
+        RegisterStatusSetZeroFlag(_registerA);
+        RegisterStatusSetOverFlowFlag(tempA, value);
+        RegisterStatusSetNegativeFlag(_registerA);
+
+        ProgramCounter++;
+    }
+
     #endregion
 
     #region Addressing
-
     public ushort GetOperandAddress(AddressingMode mode)
     {
         switch (mode)
         {
             case AddressingMode.Immediate:
                 return ProgramCounter;
+
             case AddressingMode.ZeroPage:
                 return GetAddressZeroPage();
-            case AddressingMode.Absolute:
-                return GetAddressAbsolute();
+
             case AddressingMode.ZeroPageX:
                 return GetZeroPageX();
+
             case AddressingMode.ZeroPageY:
                 return GetZeroPageY();
+
+            case AddressingMode.Absolute:
+                var t1 = GetAddressAbsolute();
+                ProgramCounter++;
+                return t1;
+
             case AddressingMode.AbsoluteX:
-                return GetAbsoluteX();
+                var t2 = GetAbsoluteX();
+                ProgramCounter++;
+                return t2;
+
             case AddressingMode.AbsoluteY:
-                return GetAbsoluteY();
+                var t3 = GetAbsoluteY();
+                ProgramCounter++;
+                return t3;
+
             case AddressingMode.IndirectX:
                 return GetIndirectX();
 
             case AddressingMode.IndirectY:
                 return GetIndirectY();
+
             default:
                 throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
         }

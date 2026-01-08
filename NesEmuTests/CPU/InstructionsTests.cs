@@ -644,6 +644,93 @@ public class InstructionsTests
 
     #endregion
 
+    #region LDY
+
+    [Theory]
+    [InlineData(0x00, true, false)] // Testa Zero Flag
+    [InlineData(0x80, false, true)] // Testa Negative Flag
+    [InlineData(0x42, false, false)] // Valor comum
+    public void TestLDY__WithImmediateAddressingMode__ShouldLoadValueAndSetFlags(
+        byte valueToLoad,
+        bool expectedZeroFlag,
+        bool expectedNegativeFlag)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xA0; // LDY Immediate
+        program[1] = valueToLoad;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(valueToLoad, cpu.GetRegisterY());
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+    }
+
+    [Theory]
+    [InlineData(0x80, 0x0A, 0xFE)] // Endereço 0x8A (0x80 + 10)
+    [InlineData(0xFF, 0x10, 0xBC)] // Endereço 0x10 (Wrap-around na ZeroPage)
+    public void TestLDY__WithZeroPageXAddressingMode__ShouldLoadValueFromCorrectAddress(
+        byte baseAddress,
+        byte registerXValue,
+        byte valueInMemory)
+    {
+        // Arrange
+        var targetAddress = (byte)((baseAddress + registerXValue) & 0xFF);
+        var program = new byte[0xFFFF];
+        program[0] = 0xA2; // LDX Immediate
+        program[1] = registerXValue;
+        program[2] = 0xB4; // LDY ZeroPage,X
+        program[3] = baseAddress;
+        program[targetAddress] = valueInMemory;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        Assert.Equal(valueInMemory, cpu.GetRegisterY());
+    }
+
+    [Theory]
+    [InlineData(0x3000, 0x05, 0x77)] // Endereço 0x3005
+    public void TestLDY__WithAbsoluteXAddressingMode__ShouldLoadValueFromCorrectAddress(
+        ushort baseAddress,
+        byte registerXValue,
+        byte valueInMemory)
+    {
+        // Arrange
+        var memLo = (byte)(baseAddress & 0xFF);
+        var memHi = (byte)(baseAddress >> 8);
+        var targetAddress = (ushort)(baseAddress + registerXValue);
+
+        var program = new byte[0xFFFF];
+        program[0] = 0xA2; // LDX Immediate
+        program[1] = registerXValue;
+        program[2] = 0xBC; // LDY Absolute,X
+        program[3] = memLo;
+        program[4] = memHi;
+        program[targetAddress] = valueInMemory;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        Assert.Equal(valueInMemory, cpu.GetRegisterY());
+    }
+
+    #endregion
+
     #region Addressing
 
     [Fact]

@@ -93,6 +93,93 @@ public class InstructionsTests
 
     #endregion
 
+    #region LDX
+
+    [Theory]
+    [InlineData(0b0000_0000, true, false)] // Testa Zero Flag
+    [InlineData(0b1000_0000, false, true)] // Testa Negative Flag
+    [InlineData(0b0000_1111, false, false)] // Valor comum
+    public void TestLDX__WithImmediateAddressingMode__ShouldLoadValueAndSetFlags(
+        byte valueToLoad,
+        bool expectedZeroFlag,
+        bool expectedNegativeFlag)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xA2; // LDX Immediate
+        program[1] = valueToLoad;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(valueToLoad, cpu.GetRegisterX());
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+    }
+
+    [Theory]
+    [InlineData(0x80, 0x05, 0x12)] // Endereço 0x85 (0x80 + 5)
+    [InlineData(0xFF, 0x10, 0x34)] // Endereço 0x10 (Wrap-around na ZeroPage: FF + 10 = 10)
+    public void TestLDX__WithZeroPageYAddressingMode__ShouldLoadValueFromCorrectAddress(
+        byte baseAddress,
+        byte registerYValue,
+        byte valueInMemory)
+    {
+        // Arrange
+        var targetAddress = (byte)((baseAddress + registerYValue) & 0xFF);
+        var program = new byte[0xFFFF];
+        program[0] = 0xA0; // LDY Immediate
+        program[1] = registerYValue;
+        program[2] = 0xB6; // LDX ZeroPage,Y
+        program[3] = baseAddress;
+        program[targetAddress] = valueInMemory;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        Assert.Equal(valueInMemory, cpu.GetRegisterX());
+    }
+
+    [Theory]
+    [InlineData(0x2000, 0x10, 0xAB)] // Endereço 0x2010
+    public void TestLDX__WithAbsoluteYAddressingMode__ShouldLoadValueFromCorrectAddress(
+        ushort baseAddress,
+        byte registerYValue,
+        byte valueInMemory)
+    {
+        // Arrange
+        var memLo = (byte)(baseAddress & 0xFF);
+        var memHi = (byte)(baseAddress >> 8);
+        var targetAddress = (ushort)(baseAddress + registerYValue);
+
+        var program = new byte[0xFFFF];
+        program[0] = 0xA0; // LDY Immediate
+        program[1] = registerYValue;
+        program[2] = 0xBE; // LDX Absolute,Y
+        program[3] = memLo;
+        program[4] = memHi;
+        program[targetAddress] = valueInMemory;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        Assert.Equal(valueInMemory, cpu.GetRegisterX());
+    }
+
+    #endregion
+
     #region TAX
 
     [Fact]
@@ -493,7 +580,7 @@ public class InstructionsTests
     {
         // Arrange
         var memLo = (byte)(memoryAddress & 0xFF);
-        var memHi =  (byte)(memoryAddress >> 8);
+        var memHi = (byte)(memoryAddress >> 8);
         var program = new byte[0xFFFF];
         program[0] = 0x0E;
         program[1] = memLo;
@@ -515,17 +602,17 @@ public class InstructionsTests
         AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
         AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
     }
-    
+
     [Theory]
     [InlineData(0x0100, 0x05, 0b_0000_0001, 0b_0000_0010, false, false, false)]
     [InlineData(0x0200, 0x10, 0b_1000_0000, 0b_0000_0000, true, true, false)]
     [InlineData(0x0300, 0x02, 0b_0100_0000, 0b_1000_0000, false, false, true)]
     public void TestASL__WithAbsoluteXAddressingMode__ShouldExecuteInstructionAndSetFlags(
-        ushort baseAddress, 
-        byte registerXValue, 
-        byte memoryValue, 
-        byte expectedFinalValue, 
-        bool expectedZeroFlag, 
+        ushort baseAddress,
+        byte registerXValue,
+        byte memoryValue,
+        byte expectedFinalValue,
+        bool expectedZeroFlag,
         bool expectedCarryFlag,
         bool expectedNegativeFlag)
     {
@@ -533,7 +620,7 @@ public class InstructionsTests
         var memLo = (byte)(baseAddress & 0xFF);
         var memHi = (byte)(baseAddress >> 8);
         var targetAddress = (ushort)(baseAddress + registerXValue);
-    
+
         var program = new byte[0xFFFF];
         program[0] = 0xA2; // LDX Immediate
         program[1] = registerXValue;

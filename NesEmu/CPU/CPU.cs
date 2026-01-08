@@ -230,6 +230,13 @@ public class CPU
         _instructions.Add(0x16, () => ASL(AddressingMode.ZeroPageX));
         _instructions.Add(0x0E, () => ASL(AddressingMode.Absolute));
         _instructions.Add(0x1E, () => ASL(AddressingMode.AbsoluteX));
+        
+        // LDY
+        _instructions.Add(0xA0, () => Ldy(AddressingMode.Immediate));
+        _instructions.Add(0xA4, () => Ldy(AddressingMode.ZeroPage));
+        _instructions.Add(0xB4, () => Ldy(AddressingMode.ZeroPageX));
+        _instructions.Add(0xAC, () => Ldy(AddressingMode.Absolute));
+        _instructions.Add(0xBC, () => Ldy(AddressingMode.AbsoluteX));
     }
 
     private void ResetRegisterStatus()
@@ -371,6 +378,21 @@ public class CPU
         _nesMemory.Write(operand ?? throw new ArgumentNullException(), (byte)temp);
     }
 
+    //TODO: test
+    /// <summary>
+    /// LDY instruction. Loads a byte of memory into the Y register setting the zero and negative flags as appropriate.
+    /// </summary>
+    /// <param name="mode"></param>
+    private void Ldy(AddressingMode mode)
+    {
+        var param = GetOperandAddress(mode);
+        var value = _nesMemory.Read(param);
+        
+        _registerY = value;
+        UpdateZeroFlag(_registerY);
+        UpdateNegativeFlag(_registerY);
+    }
+    
     #endregion
 
     #region Addressing

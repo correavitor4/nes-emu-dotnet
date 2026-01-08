@@ -187,6 +187,14 @@ public class CPU
         _instructions.Add(0xA1, () => Lda(AddressingMode.IndirectX));
         _instructions.Add(0xB1, () => Lda(AddressingMode.IndirectY));
 
+        // LDX
+        _instructions.Add(0xA2, () => Ldx(AddressingMode.Immediate));
+        _instructions.Add(0xA6, () => Ldx(AddressingMode.ZeroPage));
+        _instructions.Add(0xB6, () => Ldx(AddressingMode.ZeroPageY));
+        _instructions.Add(0xAE, () => Ldx(AddressingMode.Absolute));
+        _instructions.Add(0xBE, () => Ldx(AddressingMode.AbsoluteY));
+
+        
         // BRK
         _instructions.Add(0x00, Brk);
 
@@ -215,6 +223,13 @@ public class CPU
         _instructions.Add(0x39, () => And(AddressingMode.AbsoluteY));
         _instructions.Add(0x21, () => And(AddressingMode.IndirectX));
         _instructions.Add(0x31, () => And(AddressingMode.IndirectY));
+        
+        // ASL
+        _instructions.Add(0x0A, () => ASL(AddressingMode.Accumulator));
+        _instructions.Add(0x06, () => ASL(AddressingMode.ZeroPage));
+        _instructions.Add(0x16, () => ASL(AddressingMode.ZeroPageX));
+        _instructions.Add(0x0E, () => ASL(AddressingMode.Absolute));
+        _instructions.Add(0x1E, () => ASL(AddressingMode.AbsoluteX));
     }
 
     private void ResetRegisterStatus()
@@ -238,6 +253,21 @@ public class CPU
 
         UpdateZeroFlag(_registerA);
         UpdateNegativeFlag(_registerA);
+    }
+    
+    // TODO: test
+    /// <summary>
+    /// LDX instruction. It loads a value in memory and fill register_x value with it
+    /// </summary>
+    /// <param name="mode"></param>
+    public void Ldx(AddressingMode mode)
+    {
+        var addr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(addr);
+        _registerX = value;
+
+        UpdateZeroFlag(_registerX);
+        UpdateNegativeFlag(_registerX);
     }
 
     /// <summary>
@@ -315,14 +345,15 @@ public class CPU
     private void ASL(AddressingMode mode)
     {
         byte value;
+        ushort? operand = null;
         if (mode.Equals(AddressingMode.Accumulator))
         {
             value = _registerA;
         }
         else
         {
-            var operand = GetOperandAddress(mode);
-            value = _nesMemory.Read(operand);
+            operand = GetOperandAddress(mode);
+            value = _nesMemory.Read(operand ?? throw new ArgumentNullException());
         }
         
         var temp = value << 1;
@@ -330,6 +361,14 @@ public class CPU
         UpdateCarryFlag(temp);
         UpdateZeroFlag(temp);
         UpdateNegativeFlag(temp);
+
+        if (mode.Equals(AddressingMode.Accumulator))
+        {
+            _registerA = (byte)temp;
+            return;
+        }
+        
+        _nesMemory.Write(operand ?? throw new ArgumentNullException(), (byte)temp);
     }
 
     #endregion

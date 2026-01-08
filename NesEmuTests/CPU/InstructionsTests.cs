@@ -359,6 +359,204 @@ public class InstructionsTests
 
     #endregion
 
+    #region ASL
+
+    [Theory]
+    [InlineData(0x0A, 1)]
+    [InlineData(0x06, 2)]
+    [InlineData(0x16, 2)]
+    [InlineData(0x0E, 3)]
+    [InlineData(0x1E, 3)]
+    public void TestASL__WithDifferentOpcodes__ShouldStepPC(byte opcode, byte expectedSteppedMemoryAddresses)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = opcode;
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+
+        // Assert
+        Assert.Equal(expectedSteppedMemoryAddresses, cpu.ProgramCounter);
+    }
+
+    [Theory]
+    [InlineData(0b0111_1111, 0b1111_1110, false, false, true)]
+    [InlineData(0b1111_1111, 0b1111_1110, false, true, true)]
+    [InlineData(0b1000_0000, 0b0000_0000, true, true, false)]
+    [InlineData(0b0000_0000, 0b0000_0000, true, false, false)]
+    public void TestASL__WithAccumalatorAddressingModeAndDifferentValues__ShouldExecuteInstructionAndSetFlags(
+        byte registerAInitialValue, byte registerAExpectedFinalValue, bool expectedZeroFlag, bool expectedCarryFlag,
+        bool expectedNegativeFlag)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xA9;
+        program[1] = registerAInitialValue;
+        program[2] = 0x0A;
+
+        var mem = NesMemory.FromBytesArray(program);
+
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+
+        // Assert 
+        Assert.Equal(registerAExpectedFinalValue, cpu.GetRegisterA());
+        AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+    }
+
+    [Theory]
+    [InlineData(0xEE, 0b0111_1111, 0b_1111_1110, false, false, true)]
+    [InlineData(0xE1, 0b0111_1111, 0b_1111_1110, false, false, true)]
+    [InlineData(0xE1, 0b1111_1111, 0b_1111_1110, false, true, true)]
+    [InlineData(0xE1, 0b1000_0000, 0b_0000_0000, true, true, false)]
+    public void TestASL__WithZeroPageAddressingModeAndDifferentValues__ShouldExecuteInstructionAndSetFlags(
+        byte memoryAddress, byte memoryValue, byte expectedFinalValue, bool expectedZeroFlag, bool expectedCarryFlag,
+        bool expectedNegativeFlag)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0x06;
+        program[1] = memoryAddress;
+        program[memoryAddress] = memoryValue;
+
+        var mem = NesMemory.FromBytesArray(program);
+
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+
+        // Assert
+        Assert.Equal(expectedFinalValue, mem.ToBytesArray()[memoryAddress]);
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+        AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
+    }
+
+
+    [Theory]
+    [InlineData(0xEE, 0b0111_1111, 0b_1111_1110, false, false, true, 0)]
+    [InlineData(0xE1, 0b0111_1111, 0b_1111_1110, false, false, true, 0)]
+    [InlineData(0xE1, 0b1111_1111, 0b_1111_1110, false, true, true, 0)]
+    [InlineData(0xE1, 0b1000_0000, 0b_0000_0000, true, true, false, 0)]
+    [InlineData(0xE1, 0b1000_0000, 0b_0000_0000, true, true, false, 1)]
+    [InlineData(0xFF, 0b1000_0000, 0b_0000_0000, true, true, false, 0x0A)]
+    public void TestASL__WithZeroPageXAddressingModeAndDifferentValues__ShouldExecuteInstructionAndSetFlags(
+        byte memoryAddress, byte memoryValue, byte expectedFinalValue, bool expectedZeroFlag, bool expectedCarryFlag,
+        bool expectedNegativeFlag, byte registerXInitialValue)
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xA2;
+        program[1] = registerXInitialValue;
+        program[2] = 0x16;
+        program[3] = memoryAddress;
+        program[(byte)(memoryAddress + registerXInitialValue)] = memoryValue;
+
+        var mem = NesMemory.FromBytesArray(program);
+
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+
+        // Assert
+        Assert.Equal(expectedFinalValue, mem.ToBytesArray()[(byte)(memoryAddress + registerXInitialValue)]);
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+        AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
+    }
+
+    [Theory]
+    [InlineData(0x01FF, 0b_0111_1111, 0b_1111_1110, false, false, true)]
+    [InlineData(0xE1FF, 0b0111_1111, 0b_1111_1110, false, false, true)]
+    [InlineData(0xE1FF, 0b1111_1111, 0b_1111_1110, false, true, true)]
+    [InlineData(0xE1, 0b1000_0000, 0b_0000_0000, true, true, false)]
+    public void TestASL__WithAbsoluteAddressingModeAndDifferentValues__ShouldExecuteInstructionAndSetFlags(
+        ushort memoryAddress, byte memoryValue, byte expectedFinalValue, bool expectedZeroFlag, bool expectedCarryFlag,
+        bool expectedNegativeFlag)
+    {
+        // Arrange
+        var memLo = (byte)(memoryAddress & 0xFF);
+        var memHi =  (byte)(memoryAddress >> 8);
+        var program = new byte[0xFFFF];
+        program[0] = 0x0E;
+        program[1] = memLo;
+        program[2] = memHi;
+        program[memoryAddress] = memoryValue;
+
+        var mem = NesMemory.FromBytesArray(program);
+
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+
+        // Assert
+        Assert.Equal(expectedFinalValue, mem.ToBytesArray()[memoryAddress]);
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+        AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
+    }
+    
+    [Theory]
+    [InlineData(0x0100, 0x05, 0b_0000_0001, 0b_0000_0010, false, false, false)]
+    [InlineData(0x0200, 0x10, 0b_1000_0000, 0b_0000_0000, true, true, false)]
+    [InlineData(0x0300, 0x02, 0b_0100_0000, 0b_1000_0000, false, false, true)]
+    public void TestASL__WithAbsoluteXAddressingMode__ShouldExecuteInstructionAndSetFlags(
+        ushort baseAddress, 
+        byte registerXValue, 
+        byte memoryValue, 
+        byte expectedFinalValue, 
+        bool expectedZeroFlag, 
+        bool expectedCarryFlag,
+        bool expectedNegativeFlag)
+    {
+        // Arrange
+        var memLo = (byte)(baseAddress & 0xFF);
+        var memHi = (byte)(baseAddress >> 8);
+        var targetAddress = (ushort)(baseAddress + registerXValue);
+    
+        var program = new byte[0xFFFF];
+        program[0] = 0xA2; // LDX Immediate
+        program[1] = registerXValue;
+        program[2] = 0x1E; // ASL Absolute,X
+        program[3] = memLo;
+        program[4] = memHi;
+        program[targetAddress] = memoryValue;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        Assert.Equal(expectedFinalValue, mem.ToBytesArray()[targetAddress]);
+        AssertStatusRegisterEqualZeroFlag(cpu, expectedZeroFlag);
+        AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
+        AssertStatusRegisterEqualCarryFlag(cpu, expectedCarryFlag);
+    }
+
+    #endregion
+
     #region Addressing
 
     [Fact]

@@ -34,6 +34,11 @@ public class NesMemory(int memorySizeInBytes = 0xFFFF)
         MemorySpace[address] = value;
     }
 
+    public byte[] ToBytesArray()
+    {
+        return MemorySpace;
+    }
+
     #region Static 
     
     public static NesMemory FromBytesArray(byte[] array)

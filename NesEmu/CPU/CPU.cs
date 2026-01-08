@@ -378,7 +378,6 @@ public class CPU
         _nesMemory.Write(operand ?? throw new ArgumentNullException(), (byte)temp);
     }
 
-    //TODO: test
     /// <summary>
     /// LDY instruction. Loads a byte of memory into the Y register setting the zero and negative flags as appropriate.
     /// </summary>

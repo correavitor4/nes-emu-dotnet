@@ -109,7 +109,7 @@ public class CPU
 
     #region RegisterStatusHandlers
 
-    private void RegisterStatusSetZeroFlag(byte value)
+    private void UpdateZeroFlag(byte value)
     {
         if (value == 0)
         {
@@ -119,8 +119,14 @@ public class CPU
 
         _status &= 0b1111_1101;
     }
+    
+    private void UpdateZeroFlag(int v)
+    {
+        var value = (byte)v;
+        UpdateZeroFlag(value);
+    }
 
-    private void RegisterStatusSetNegativeFlag(byte value)
+    private void UpdateNegativeFlag(byte value)
     {
         if ((value & 0b1000_0000) != 0)
         {
@@ -130,33 +136,36 @@ public class CPU
 
         _status &= 0b0111_1111;
     }
-
-    public void RegisterStatusSetOverFlowFlag(byte a, byte b)
+    private void UpdateNegativeFlag(int value)
     {
-        var c6 = ((a & 0b0100_0000) == 0b0100_0000) &&
-                 ((b & 0b0100_0000) == 0b0100_0000); // C6 is true when both m6 and n6 equals 1
-        var m7 = (b & 0b1000_0000) == 0b1000_0000;
-        var n7 = ((a & 0b1000_0000) == 0b1000_0000);
-
-        var overflow = (!m7 & !n7 & c6) | (m7 & n7 & !c6);
+        UpdateNegativeFlag((byte)value);
+    }
+    
+    // TODO: test
+    /// <summary>
+    /// Updates the Overflow (V) flag based on signed arithmetic logic.
+    /// Overflow occurs if the sign of the result is different from the sign of both 
+    /// operands when both operands have the same sign.
+    /// </summary>
+    /// <param name="a">The original value in the Accumulator.</param>
+    /// <param name="m">The operand value from memory.</param>
+    /// <param name="result">The result of the operation (A + M + Carry).</param>
+    public void UpdateOverflowFlag(byte a, byte m, byte result)
+    {
+        // Se (A ^ Result) AND (M ^ Result) tiver o Bit 7 definido, houve overflow.
+        // Isso verifica se o sinal do resultado é diferente do sinal de AMBOS os operandos.
+        bool overflow = ((a ^ result) & (m ^ result) & 0x80) != 0;
 
         if (overflow)
-        {
-            _status = (byte)(_status | 0b0100_0000);
-            return;
-        }
-
-        _status = (byte)(_status & 0b1011_1111);
+            _status |= 0b0100_0000; // Set V
+        else
+            _status &= 0b1011_1111; // Clear V
     }
 
-    public void RegisterStatusSetCarryBitFlag(byte a, byte b)
+    private void UpdateCarryFlag(int value)
     {
-        var c6 = ((a & 0b0100_0000) == 0b0100_0000) &&
-                 ((b & 0b0100_0000) == 0b0100_0000); // C6 is true when both m6 and n6 equals 1
-        var m7 = (b & 0b1000_0000) == 0b1000_0000;
-        var n7 = ((a & 0b1000_0000) == 0b1000_0000);
 
-        var carry = (c6 && m7) || (c6 && n7) || (m7 && n7); // carry bit equals one if at least 2 of 3 are true
+        var carry = value > 0xFF;
         if (carry)
         {
             _status = (byte)(_status | 0b0000_0001);
@@ -227,8 +236,8 @@ public class CPU
         var value = _nesMemory.Read(addr);
         _registerA = value;
 
-        RegisterStatusSetZeroFlag(_registerA);
-        RegisterStatusSetNegativeFlag(_registerA);
+        UpdateZeroFlag(_registerA);
+        UpdateNegativeFlag(_registerA);
     }
 
     /// <summary>
@@ -246,8 +255,8 @@ public class CPU
     {
         _registerX = _registerA;
 
-        RegisterStatusSetZeroFlag(_registerX);
-        RegisterStatusSetNegativeFlag(_registerX);
+        UpdateZeroFlag(_registerX);
+        UpdateNegativeFlag(_registerX);
     }
 
 
@@ -257,8 +266,8 @@ public class CPU
     private void Inx()
     {
         _registerX++;
-        RegisterStatusSetNegativeFlag(_registerX);
-        RegisterStatusSetZeroFlag(_registerX);
+        UpdateNegativeFlag(_registerX);
+        UpdateZeroFlag(_registerX);
     }
 
     /// <summary>
@@ -269,15 +278,15 @@ public class CPU
     {
         var operand = GetOperandAddress(mode);
         var value = _nesMemory.Read(operand);
+        
+        var temp = _registerA + value; // Addition itself
 
-        var tempA = _registerA;
-
-        _registerA = (byte)(_registerA + value); // Addition itself
-
-        RegisterStatusSetCarryBitFlag(tempA, value);
-        RegisterStatusSetZeroFlag(_registerA);
-        RegisterStatusSetOverFlowFlag(tempA, value);
-        RegisterStatusSetNegativeFlag(_registerA);
+        UpdateCarryFlag(temp);
+        UpdateZeroFlag(temp);
+        UpdateOverflowFlag(_registerA, value, (byte)temp);
+        UpdateNegativeFlag(temp);
+        
+        _registerA = (byte)temp;
     }
 
     /// <summary>
@@ -293,8 +302,34 @@ public class CPU
 
         _registerA = (byte)(_registerA & value);
 
-        RegisterStatusSetZeroFlag(_registerA);
-        RegisterStatusSetNegativeFlag(_registerA);
+        UpdateZeroFlag(_registerA);
+        UpdateNegativeFlag(_registerA);
+    }
+
+    /// <summary>
+    /// ASL Instruction 
+    /// A,Z,C,N = M*2 or M,Z,C,N = M*2
+    /// This operation shifts all the bits of the accumulator or memory contents one bit left. Bit 0 is set to 0 and bit 7 is placed in the carry flag. The effect of this operation is to multiply the memory contents by 2 (ignoring 2's complement considerations), setting the carry if the result will not fit in 8 bits.
+    /// </summary>
+    /// <param name="mode"></param>
+    private void ASL(AddressingMode mode)
+    {
+        byte value;
+        if (mode.Equals(AddressingMode.Accumulator))
+        {
+            value = _registerA;
+        }
+        else
+        {
+            var operand = GetOperandAddress(mode);
+            value = _nesMemory.Read(operand);
+        }
+        
+        var temp = value << 1;
+        
+        UpdateCarryFlag(temp);
+        UpdateZeroFlag(temp);
+        UpdateNegativeFlag(temp);
     }
 
     #endregion

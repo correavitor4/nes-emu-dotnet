@@ -953,6 +953,143 @@ public class InstructionsTests
     }
 
     #endregion
+    
+    #region BIT
+
+[Fact]
+public void TestBit__ShouldSetZeroFlag__WhenAndResultIsZero()
+{
+    // Arrange: A = 0x0F, M = 0xF0 -> AND = 0x00 (Zero)
+    var program = new byte[0xFFFF];
+    program[0] = 0x24; // BIT ZeroPage
+    program[1] = 0x10; // Endereço na Zero Page
+    program[0x10] = 0xF0; 
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.SetRegisterA(0x0F);
+    cpu.SetStatusFlag(0); // Começa com flags limpas
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    AssertStatusRegisterEqualZeroFlag(cpu, true);
+}
+
+[Fact]
+public void TestBit__ShouldClearZeroFlag__WhenAndResultIsNotZero()
+{
+    // Arrange: A = 0x01, M = 0x01 -> AND = 0x01 (Não Zero)
+    var program = new byte[0xFFFF];
+    program[0] = 0x24;
+    program[1] = 0x10;
+    program[0x10] = 0x01; 
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.SetRegisterA(0x01);
+    // Força a Zero Flag a estar ligada para ver se o BIT a desliga
+    cpu.SetStatusFlag(0b0000_0010); 
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    AssertStatusRegisterEqualZeroFlag(cpu, false);
+}
+
+[Fact]
+public void TestBit__ShouldTransferMemoryBit7ToNegativeFlag()
+{
+    // Arrange: Memória com Bit 7 em 1 (0x80)
+    var program = new byte[0xFFFF];
+    program[0] = 0x24;
+    program[1] = 0x10;
+    program[0x10] = 0xC0; 
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.SetRegisterA(0xFF); // AND resultará em não-zero (Z=0)
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    AssertStatusRegisterEqualNegativeFlag(cpu, true);
+    AssertStatusRegisterEqualOverflowFlag(cpu, true);
+    AssertStatusRegisterEqualZeroFlag(cpu, false);
+}
+
+[Fact]
+public void TestBit__ShouldTransferMemoryBit7AgainToNegativeFlag()
+{
+    // Arrange: Memória com Bit 7 em 1 (0x80)
+    var program = new byte[0xFFFF];
+    program[0] = 0x24;
+    program[1] = 0x10;
+    program[0x10] = 0x80; 
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.SetRegisterA(0xFF); // AND resultará em não-zero (Z=0)
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    AssertStatusRegisterEqualNegativeFlag(cpu, true);
+    AssertStatusRegisterEqualOverflowFlag(cpu, false);
+    AssertStatusRegisterEqualZeroFlag(cpu, false);
+}
+
+[Fact]
+public void TestBit__ShouldTransferMemoryBit7AgainAgainToNegativeFlag()
+{
+    // Arrange: Memória com Bit 7 em 1 (0x80)
+    var program = new byte[0xFFFF];
+    program[0] = 0x24;
+    program[1] = 0x10;
+    program[0x10] = 0x40; 
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.SetRegisterA(0xFF); // AND resultará em não-zero (Z=0)
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    AssertStatusRegisterEqualNegativeFlag(cpu, false);
+    AssertStatusRegisterEqualOverflowFlag(cpu, true);
+    AssertStatusRegisterEqualZeroFlag(cpu, false);
+}
+
+[Fact]
+public void TestBit__ShouldClearExistingFlags__IfMemoryBitsAreZero()
+{
+    // Arrange: Caso crucial para testar se sua implementação limpa flags antigas
+    var program = new byte[0xFFFF];
+    program[0] = 0x24;
+    program[1] = 0x10;
+    program[0x10] = 0x00; // Bits 7 e 6 são 0. AND resultará em 0 (Z=1).
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    
+    // Inicia com N=1 e V=1. O BIT deve limpá-los.
+    cpu.SetStatusFlag(0b1100_0000); 
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    AssertStatusRegisterEqualNegativeFlag(cpu, false);
+    AssertStatusRegisterEqualOverflowFlag(cpu, false);
+    AssertStatusRegisterEqualZeroFlag(cpu, true);
+}
+
+#endregion
 
 
     #region Addressing
@@ -1222,13 +1359,11 @@ public class InstructionsTests
 
     private void AssertStatusRegisterEqualOverflowFlag(NesEmu.CPU.CPU cpu, bool expected)
     {
-        if (expected)
-        {
-            Assert.Equal(0b0100_0000, cpu.GetRegisterStatus() & 0b0100_0000); // Status register equals zero
-            return;
-        }
-
-        Assert.Equal(0b0000_0000, cpu.GetRegisterStatus() & 0b0100_0000); // status register not equals zero
+        // Extraímos o bit 6 e verificamos se ele é diferente de zero
+        bool isOverflowSet = (cpu.GetRegisterStatus() & 0b0100_0000) != 0;
+    
+        // Agora o erro será: Expected True, Actual False (ou vice-versa)
+        Assert.Equal(expected, isOverflowSet);
     }
 
     private void AssertStatusRegisterEqualZeroFlag(NesEmu.CPU.CPU cpu, bool expected)

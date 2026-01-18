@@ -111,6 +111,11 @@ public class CPU
         _status = newValue;
     }
 
+    public void SetRegisterA(byte value)
+    {
+        _registerA = value;
+    }
+
     #endregion
 
     #region RegisterStatusHandlers
@@ -252,6 +257,10 @@ public class CPU
         
         // BEQ
         _instructions.Add(0xF0, () => Beq(AddressingMode.Relative));
+        
+        // BIT
+        _instructions.Add(0x24, (() => Bit(AddressingMode.ZeroPage)));
+        _instructions.Add(0x2C, (() => Bit(AddressingMode.Absolute)));
     }
 
     private void ResetRegisterStatus()
@@ -466,7 +475,37 @@ public class CPU
         var value = (sbyte)_nesMemory.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
+
+    /// <summary>
+    /// BIT instruction. A & M, N = M7, V = M6
+    /// This instructions is used to test if one or more bits are set in a target memory location. The mask pattern in A is ANDed with the value in memory to set or clear the zero flag, but the result is not kept. Bits 7 and 6 of the value from memory are copied into the N and V flags.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Bit(AddressingMode mode)
+    {
+        var addr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(addr);
+
+        // 1. Zero Flag: Z = (A AND M) == 0
+        // Note: usamos != 0 para saber se o resultado contém bits, 
+        // e invertemos para a flag Zero (Z=1 se o resultado for 0).
+        if ((_registerA & value) == 0)
+        {
+            _status |= 0b0000_0010; // Liga bit 1 (Zero)
+        }
+        else
+        {
+            _status &= 0b1111_1101; // Desliga bit 1 (Zero)
+        }
+
+        // 2. Negative e Overflow: Copia bits 7 e 6 DIRETAMENTE do valor lido
+        // Primeiro, limpamos os bits 7 e 6 atuais do status para não "sujar"
+        _status &= 0b0011_1111; 
     
+        // Agora pegamos apenas os bits 7 e 6 do 'value' e injetamos no status
+        _status |= (byte)(value & 0b1100_0000);
+    }
     #endregion
 
     #region Addressing

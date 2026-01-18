@@ -261,6 +261,9 @@ public class CPU
         // BIT
         _instructions.Add(0x24, (() => Bit(AddressingMode.ZeroPage)));
         _instructions.Add(0x2C, (() => Bit(AddressingMode.Absolute)));
+        
+        // BMI
+        _instructions.Add(0x30, () => Bmi(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -506,6 +509,25 @@ public class CPU
         // Agora pegamos apenas os bits 7 e 6 do 'value' e injetamos no status
         _status |= (byte)(value & 0b1100_0000);
     }
+
+    /// <summary>
+    ///  BMI instruction. If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Addressing mode (should be always "relative")</param>
+    private void Bmi(AddressingMode mode)
+    {
+        if (!mode.Equals(AddressingMode.Relative))  throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+        if ((_status & 0b1000_0000) != 0b1000_0000)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+    
     #endregion
 
     #region Addressing

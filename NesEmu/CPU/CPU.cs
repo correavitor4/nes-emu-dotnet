@@ -419,9 +419,9 @@ public class CPU
         if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
         
         var param = GetOperandAddress(mode);
-        var value = _nesMemory.Read(param);
-        
-        ProgramCounter += value;
+        var value = (sbyte)_nesMemory.Read(param);
+
+        ProgramCounter = (ushort)(ProgramCounter + value);
     }
     
     /// <summary>
@@ -439,9 +439,9 @@ public class CPU
         if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
         
         var param = GetOperandAddress(mode);
-        var value = _nesMemory.Read(param);
+        var value = (sbyte)_nesMemory.Read(param);
         
-        ProgramCounter += value;
+        ProgramCounter = (ushort)(ProgramCounter + value);
     }
     
     #endregion

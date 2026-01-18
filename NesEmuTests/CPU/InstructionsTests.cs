@@ -778,11 +778,32 @@ public class InstructionsTests
         Assert.Equal(10 + 2,
             cpu.ProgramCounter); // 10 is the initial and 2 is cause the instruction itself and it's operand
     }
+    
+    [Fact]
+    public void TestBcc__WithNegativeOffset__shouldJumpBackwards()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[10] = 0x90; 
+        program[11] = 0xFB; // 0xFB em complemento de 2 é -5 (sbyte)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 10;
+        cpu.SetStatusFlag(0); // Carry 0, deve saltar
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // PC (10) + 2 + (-5) = 7
+        Assert.Equal(7, cpu.ProgramCounter);
+    }
 
     #endregion
 
 
-    #region BCC
+    #region BCS
 
     [Fact]
     public void TestBcs__WithCarryFlagZero__shouldSetProgramCounterCorrectly()
@@ -828,6 +849,31 @@ public class InstructionsTests
         // Assert
         Assert.Equal(10 + 2 + 5,
             cpu.ProgramCounter); // 10 is the initial, 5 is the offset and 2 is cause the instruction itself and it's operand
+    }
+    
+    [Fact]
+    public void TestBcs__WithNegativeOffsetAndCarryFlagSet__shouldJumpBackwards()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        ushort initialPc = 10;
+    
+        program[initialPc] = 0xB0;     // Opcode BCS
+        program[initialPc + 1] = 0xFB; // Offset 0xFB (interpretado como -5)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+    
+        cpu.ProgramCounter = initialPc;
+        cpu.SetStatusFlag(0b0000_0001); // Garante que o Carry está em 1
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O cálculo esperado: 
+        // PC Inicial (10) + Tamanho da Instrução (2) + Offset (-5) = 7
+        Assert.Equal(7, cpu.ProgramCounter);
     }
 
     #endregion

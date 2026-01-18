@@ -246,6 +246,9 @@ public class CPU
         
         // BCC
         _instructions.Add(0x90, () => Bcc(AddressingMode.Relative));
+        
+        // BCS
+        _instructions.Add(0xB0, () => Bcs(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -421,6 +424,25 @@ public class CPU
         ProgramCounter += value;
     }
     
+    /// <summary>
+    /// BCS instruction. If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Refers to Addressing mode</param>
+    private void Bcs(AddressingMode mode)
+    {
+        if ((_status & 0b0000_0001) != 0b0000_0001)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
+        
+        var param = GetOperandAddress(mode);
+        var value = _nesMemory.Read(param);
+        
+        ProgramCounter += value;
+    }
     
     #endregion
 

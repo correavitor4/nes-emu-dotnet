@@ -249,6 +249,9 @@ public class CPU
         
         // BCS
         _instructions.Add(0xB0, () => Bcs(AddressingMode.Relative));
+        
+        // BEQ
+        _instructions.Add(0xF0, () => Beq(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -440,7 +443,27 @@ public class CPU
         
         var param = GetOperandAddress(mode);
         var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+
+    
+    /// <summary>
+    /// BEQ instruction. If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Refers to Addressing mode</param>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Beq(AddressingMode mode)
+    {
+        if ((_status & 0b0000_0010) != 0b0000_0010)
+        {
+            ProgramCounter++;
+            return;
+        }
         
+        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+        
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
     

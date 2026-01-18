@@ -877,6 +877,82 @@ public class InstructionsTests
     }
 
     #endregion
+    
+    #region BEQ
+
+    [Fact]
+    public void TestBeq__WithZeroFlagSet__ShouldJumpForward()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        ushort initialPc = 100;
+        program[initialPc] = 0xF0; // BEQ
+        program[initialPc + 1] = 0x05; // Offset +5
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+    
+        // Ativa a Zero Flag (Bit 1 do status register no 6502)
+        cpu.SetStatusFlag(0b0000_0010); 
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // PC Inicial (100) + 2 (instrução) + 5 (offset) = 107
+        Assert.Equal(107, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBeq__WithZeroFlagClear__ShouldNotJump()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        ushort initialPc = 100;
+        program[initialPc] = 0xF0; // BEQ
+        program[initialPc + 1] = 0x05; // Offset +5
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+    
+        // Garante que a Zero Flag está limpa
+        cpu.SetStatusFlag(0b0000_0000); 
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // PC Inicial (100) + 2 (instrução) = 102 (apenas avança para a próxima)
+        Assert.Equal(102, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBeq__WithZeroFlagSet__ShouldJumpBackward()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        ushort initialPc = 100;
+        program[initialPc] = 0xF0; // BEQ
+        program[initialPc + 1] = 0xFB; // Offset -5 (0xFB interpretado como sbyte)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+    
+        // Ativa a Zero Flag
+        cpu.SetStatusFlag(0b0000_0010); 
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // PC Inicial (100) + 2 (instrução) - 5 (offset) = 97
+        Assert.Equal(97, cpu.ProgramCounter);
+    }
+
+    #endregion
 
 
     #region Addressing

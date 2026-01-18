@@ -105,6 +105,12 @@ public class CPU
         _registerY = value;
     }
 
+    // For testing
+    public void SetStatusFlag(byte newValue)
+    {
+        _status = newValue;
+    }
+
     #endregion
 
     #region RegisterStatusHandlers
@@ -237,6 +243,9 @@ public class CPU
         _instructions.Add(0xB4, () => Ldy(AddressingMode.ZeroPageX));
         _instructions.Add(0xAC, () => Ldy(AddressingMode.Absolute));
         _instructions.Add(0xBC, () => Ldy(AddressingMode.AbsoluteX));
+        
+        // BCC
+        _instructions.Add(0x90, () => Bcc(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -391,6 +400,27 @@ public class CPU
         UpdateZeroFlag(_registerY);
         UpdateNegativeFlag(_registerY);
     }
+
+    /// <summary>
+    /// BCC instruction. If the carry flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Refers to Addressing mode</param>
+    private void Bcc(AddressingMode mode)
+    {
+        if ((_status & 0b0000_0001) != 0b0000_0000)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
+        
+        var param = GetOperandAddress(mode);
+        var value = _nesMemory.Read(param);
+        
+        ProgramCounter += value;
+    }
+    
     
     #endregion
 
@@ -445,6 +475,9 @@ public class CPU
                 addrUshort = GetIndirectY();
                 ProgramCounter++;
                 return addrUshort;
+            
+            case AddressingMode.Relative:
+                return ProgramCounter++;
             
             default:
                 throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));

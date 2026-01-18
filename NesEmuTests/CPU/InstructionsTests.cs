@@ -731,6 +731,54 @@ public class InstructionsTests
 
     #endregion
 
+    #region BCC
+
+    [Fact]
+    public void TestBcc__WithCarryFlagZero__shouldSetProgramCounterCorrectly()
+    {
+        // Arrange
+        var  program = new byte[0xFFFF];
+        program[10] = 0x90;  
+        program[11] = 5;
+        
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 10;
+        cpu.SetStatusFlag(0b0000_0000);
+        
+        
+        // Act
+        cpu.Interpret(limit:1);
+        
+        
+        // Assert
+        Assert.Equal(10+5+2, cpu.ProgramCounter); // 10 is the initial, 5 is the offset and 2 is cause the instruction itself and it's operand
+    }
+    
+    [Fact]
+    public void TestBcc__WithCarryFlagSettedOne__shouldSetProgramCounterCorrectly()
+    {
+        // Arrange
+        var  program = new byte[0xFFFF];
+        program[10] = 0x90;  
+        program[11] = 5;
+        
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 10;
+        cpu.SetStatusFlag(0b0000_0001);
+        
+        
+        // Act
+        cpu.Interpret(limit:1);
+        
+        
+        // Assert
+        Assert.Equal(10+2, cpu.ProgramCounter); // 10 is the initial and 2 is cause the instruction itself and it's operand
+    }
+    
+    #endregion
+    
     #region Addressing
 
     [Fact]

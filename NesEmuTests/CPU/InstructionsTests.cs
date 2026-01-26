@@ -1461,11 +1461,10 @@ public class InstructionsTests
     #endregion
 
     #region BVS
-    
 
     [Theory]
-    [InlineData(0x05, 107)]   // Salto para frente: 100 + 2 + 5 = 107
-    [InlineData(0xFB, 97)]    // Salto para trás (-5): 100 + 2 - 5 = 97
+    [InlineData(0x05, 107)] // Salto para frente: 100 + 2 + 5 = 107
+    [InlineData(0xFB, 97)] // Salto para trás (-5): 100 + 2 - 5 = 97
     public void TestBvs__WithOverflowFlagSet__ShouldJumpCorrectly(byte offset, ushort expectedPc)
     {
         // Arrange
@@ -1477,9 +1476,9 @@ public class InstructionsTests
         var mem = NesMemory.FromBytesArray(program);
         var cpu = new NesEmu.CPU.CPU(mem);
         cpu.ProgramCounter = initialPc;
-    
+
         // V = 1 (Overflow setado, BVS deve pular)
-        cpu.SetStatusFlag(0b0100_0000); 
+        cpu.SetStatusFlag(0b0100_0000);
 
         // Act
         cpu.Interpret(limit: 1);
@@ -1500,9 +1499,9 @@ public class InstructionsTests
         var mem = NesMemory.FromBytesArray(program);
         var cpu = new NesEmu.CPU.CPU(mem);
         cpu.ProgramCounter = initialPc;
-    
+
         // V = 0 (Overflow limpo, BVS NÃO deve pular)
-        cpu.SetStatusFlag(0b0000_0000); 
+        cpu.SetStatusFlag(0b0000_0000);
 
         // Act
         cpu.Interpret(limit: 1);
@@ -1736,6 +1735,56 @@ public class InstructionsTests
 
         // Assert
         Assert.Equal((ushort)(expectedFinalAddr + registerY), result);
+    }
+
+    #endregion
+
+    #region CLC
+
+    [Fact]
+    public void TestClc__WithCarryFlagOne__ShouldClearCarryFlag()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0x18; // CLC Opcode
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Liga o Carry (bit 0) e deixa o resto em 0
+        cpu.SetStatusFlag(0b0000_0001);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O bit 0 deve ser 0 agora
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001);
+    }
+
+    [Fact]
+    public void TestClc__WithOtherFlagsSet__ShouldOnlyClearCarry()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0x18; // CLC
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // N=1, V=1, Z=1, C=1 (0b1100_0011)
+        byte initialStatus = 0b1100_0011;
+        cpu.SetStatusFlag(initialStatus);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Apenas o bit 0 deve ter mudado. 
+        // O esperado é 0b1100_0010 (todas as outras flags intactas)
+        byte expectedStatus = 0b1100_0010;
+        Assert.Equal(expectedStatus, cpu.GetRegisterStatus());
     }
 
     #endregion

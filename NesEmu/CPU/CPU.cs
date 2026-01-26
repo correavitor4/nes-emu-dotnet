@@ -273,9 +273,12 @@ public class CPU
 
         // BVC
         _instructions.Add(0x50, () => Bvc(AddressingMode.Relative));
-        
+
         // BVS
         _instructions.Add(0x70, () => Bvs(AddressingMode.Relative));
+
+        // CLC
+        _instructions.Add(0x18, Clc);
     }
 
     private void ResetRegisterStatus()
@@ -639,13 +642,24 @@ public class CPU
             ProgramCounter++;
             return;
         }
-        
+
         var param = GetOperandAddress(mode);
         var value = (sbyte)_nesMemory.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
-} 
-    
-    
+    }
+
+    /// <summary>
+    /// CLC Instruction. C = 0
+    /// CLC clears the carry flag. In particular, this is usually done before adding the low byte of a value with ADC to avoid adding an extra 1. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Clc()
+    {
+        _status = (byte)(_status & 0b1111_1110);
+    }
+
     #endregion
 
     #region Addressing

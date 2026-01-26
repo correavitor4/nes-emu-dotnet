@@ -379,6 +379,90 @@ public class InstructionsTests
         AssertStatusRegisterEqualNegativeFlag(cpu, expectedNegativeFlag);
     }
 
+    [Fact]
+    public void TestAdc__SimpleAddition__ShouldSumCorrectly()
+    {
+        // Arrange: 10 + 20 = 30
+        var program = new byte[0xFFFF];
+        program[0] = 0x69; // ADC Immediate
+        program[1] = 20;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.RegisterA = 10;
+        cpu.SetStatusFlag(0); // Carry = 0
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(30, cpu.RegisterA);
+        AssertStatusRegisterEqualCarryFlag(cpu, false);
+        AssertStatusRegisterEqualZeroFlag(cpu, false);
+    }
+
+    [Fact]
+    public void TestAdc__WithCarryIn__ShouldIncludeCarryInSum()
+    {
+        // Arrange: 10 + 20 + (Carry: 1) = 31
+        var program = new byte[0xFFFF];
+        program[0] = 0x69;
+        program[1] = 20;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.RegisterA = 10;
+        cpu.SetStatusFlag(0b0000_0001); // Ativa Carry
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(31, cpu.RegisterA);
+    }
+
+    [Fact]
+    public void TestAdc__UnsignedOverflow__ShouldSetCarryFlag()
+    {
+        // Arrange: 255 + 1 = 256 (0 no acumulador e Carry=1)
+        var program = new byte[0xFFFF];
+        program[0] = 0x69;
+        program[1] = 1;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.RegisterA = 255;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0, cpu.RegisterA);
+        AssertStatusRegisterEqualCarryFlag(cpu, true);
+        AssertStatusRegisterEqualZeroFlag(cpu, true);
+    }
+
+    [Fact]
+    public void TestAdc__SignedOverflow__ShouldSetOverflowFlag()
+    {
+        // O Overflow (V) ocorre quando somamos dois positivos e dá negativo (ou vice-versa)
+        // Arrange: 127 (maior positivo) + 1 = 128 (que em 8 bits sinalizados é -128)
+        var program = new byte[0xFFFF];
+        program[0] = 0x69;
+        program[1] = 1;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.RegisterA = 127;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        AssertStatusRegisterEqualOverflowFlag(cpu, true);
+        AssertStatusRegisterEqualNegativeFlag(cpu, true); // 128 tem o bit 7 ligado
+    }
+
     #endregion
 
     #region AND
@@ -802,7 +886,6 @@ public class InstructionsTests
 
     #endregion
 
-
     #region BCS
 
     [Fact]
@@ -1167,6 +1250,85 @@ public class InstructionsTests
         // PC (100) + 2 + 0 = 102
         Assert.Equal(initialPc + 2, cpu.ProgramCounter);
     }
+
+    #endregion
+
+    #region BNE
+
+    #region BNE
+
+    [Theory]
+    [InlineData(0x05, 107)] // Salto para frente: 100 + 2 + 5 = 107
+    [InlineData(0xFB, 97)] // Salto para trás (-5): 100 + 2 - 5 = 97
+    [InlineData(0x00, 102)] // Salto de 0 bytes: 100 + 2 + 0 = 102
+    public void TestBne__WithZeroFlagClear__ShouldJumpCorrectly(byte offset, ushort expectedPc)
+    {
+        // Arrange
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0xD0; // BNE Opcode
+        program[initialPc + 1] = offset;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // Z = 0 (Flag Zero limpa, BNE deve pular)
+        cpu.SetStatusFlag(0b0000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(expectedPc, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBne__WithZeroFlagSet__ShouldNotJump()
+    {
+        // Arrange
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0xD0; // BNE
+        program[initialPc + 1] = 0x05; // Offset +5
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // Z = 1 (Flag Zero setada, BNE NÃO deve pular)
+        cpu.SetStatusFlag(0b0000_0010);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Deve apenas avançar os 2 bytes da instrução BNE
+        Assert.Equal((ushort)(initialPc + 2), cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBne__MaxNegativeJump__ShouldWork()
+    {
+        // Arrange: Salto de -128 (0x80)
+        ushort initialPc = 200;
+        var program = new byte[0x10000];
+        program[initialPc] = 0xD0;
+        program[initialPc + 1] = 0x80;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+        cpu.SetStatusFlag(0); // Z = 0
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert: 200 + 2 - 128 = 74
+        Assert.Equal(74, cpu.ProgramCounter);
+    }
+
+    #endregion
 
     #endregion
 

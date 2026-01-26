@@ -4,9 +4,9 @@ namespace NesEmu.CPU;
 
 public class CPU
 {
-    private byte _registerA = 0;
-    private byte _registerX = 0;
-    private byte _registerY = 0;
+    public byte RegisterA { get; set; } = 0;
+    public byte RegisterX { get; set; } = 0;
+    public byte RegisterY { get; set; } = 0;
     private byte _status = 0;
     public ushort ProgramCounter = 0;
 
@@ -65,15 +65,15 @@ public class CPU
 
     private void ResetAllRegisters()
     {
-        _registerA = 0;
-        _registerX = 0;
+        RegisterA = 0;
+        RegisterX = 0;
     }
 
     #region Getters
 
     public byte GetRegisterX()
     {
-        return _registerX;
+        return RegisterX;
     }
 
     public byte GetRegisterStatus()
@@ -83,12 +83,12 @@ public class CPU
 
     public byte GetRegisterA()
     {
-        return _registerA;
+        return RegisterA;
     }
 
     public int GetRegisterY()
     {
-        return _registerY;
+        return RegisterY;
     }
 
     #endregion
@@ -97,12 +97,12 @@ public class CPU
 
     public void SetRegisterX(byte value)
     {
-        _registerX = value;
+        RegisterX = value;
     }
 
     public void SetRegisterY(byte value)
     {
-        _registerY = value;
+        RegisterY = value;
     }
 
     // For testing
@@ -113,7 +113,7 @@ public class CPU
 
     public void SetRegisterA(byte value)
     {
-        _registerA = value;
+        RegisterA = value;
     }
 
     #endregion
@@ -130,7 +130,7 @@ public class CPU
 
         _status &= 0b1111_1101;
     }
-    
+
     private void UpdateZeroFlag(int v)
     {
         var value = (byte)v;
@@ -147,11 +147,12 @@ public class CPU
 
         _status &= 0b0111_1111;
     }
+
     private void UpdateNegativeFlag(int value)
     {
         UpdateNegativeFlag((byte)value);
     }
-    
+
     // TODO: test
     /// <summary>
     /// Updates the Overflow (V) flag based on signed arithmetic logic.
@@ -175,7 +176,6 @@ public class CPU
 
     private void UpdateCarryFlag(int value)
     {
-
         var carry = value > 0xFF;
         if (carry)
         {
@@ -205,7 +205,7 @@ public class CPU
         _instructions.Add(0xAE, () => Ldx(AddressingMode.Absolute));
         _instructions.Add(0xBE, () => Ldx(AddressingMode.AbsoluteY));
 
-        
+
         // BRK
         _instructions.Add(0x00, Brk);
 
@@ -234,36 +234,39 @@ public class CPU
         _instructions.Add(0x39, () => And(AddressingMode.AbsoluteY));
         _instructions.Add(0x21, () => And(AddressingMode.IndirectX));
         _instructions.Add(0x31, () => And(AddressingMode.IndirectY));
-        
+
         // ASL
         _instructions.Add(0x0A, () => ASL(AddressingMode.Accumulator));
         _instructions.Add(0x06, () => ASL(AddressingMode.ZeroPage));
         _instructions.Add(0x16, () => ASL(AddressingMode.ZeroPageX));
         _instructions.Add(0x0E, () => ASL(AddressingMode.Absolute));
         _instructions.Add(0x1E, () => ASL(AddressingMode.AbsoluteX));
-        
+
         // LDY
         _instructions.Add(0xA0, () => Ldy(AddressingMode.Immediate));
         _instructions.Add(0xA4, () => Ldy(AddressingMode.ZeroPage));
         _instructions.Add(0xB4, () => Ldy(AddressingMode.ZeroPageX));
         _instructions.Add(0xAC, () => Ldy(AddressingMode.Absolute));
         _instructions.Add(0xBC, () => Ldy(AddressingMode.AbsoluteX));
-        
+
         // BCC
         _instructions.Add(0x90, () => Bcc(AddressingMode.Relative));
-        
+
         // BCS
         _instructions.Add(0xB0, () => Bcs(AddressingMode.Relative));
-        
+
         // BEQ
         _instructions.Add(0xF0, () => Beq(AddressingMode.Relative));
-        
+
         // BIT
         _instructions.Add(0x24, (() => Bit(AddressingMode.ZeroPage)));
         _instructions.Add(0x2C, (() => Bit(AddressingMode.Absolute)));
-        
+
         // BMI
         _instructions.Add(0x30, () => Bmi(AddressingMode.Relative));
+
+        // BNE 
+        _instructions.Add(0xD0, () => Bne(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -283,12 +286,12 @@ public class CPU
     {
         var addr = GetOperandAddress(mode);
         var value = _nesMemory.Read(addr);
-        _registerA = value;
+        RegisterA = value;
 
-        UpdateZeroFlag(_registerA);
-        UpdateNegativeFlag(_registerA);
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
     }
-    
+
     // TODO: test
     /// <summary>
     /// LDX instruction. It loads a value in memory and fill register_x value with it
@@ -298,10 +301,10 @@ public class CPU
     {
         var addr = GetOperandAddress(mode);
         var value = _nesMemory.Read(addr);
-        _registerX = value;
+        RegisterX = value;
 
-        UpdateZeroFlag(_registerX);
-        UpdateNegativeFlag(_registerX);
+        UpdateZeroFlag(RegisterX);
+        UpdateNegativeFlag(RegisterX);
     }
 
     /// <summary>
@@ -317,10 +320,10 @@ public class CPU
     /// </summary>
     private void Tax()
     {
-        _registerX = _registerA;
+        RegisterX = RegisterA;
 
-        UpdateZeroFlag(_registerX);
-        UpdateNegativeFlag(_registerX);
+        UpdateZeroFlag(RegisterX);
+        UpdateNegativeFlag(RegisterX);
     }
 
 
@@ -329,9 +332,9 @@ public class CPU
     /// </summary>
     private void Inx()
     {
-        _registerX++;
-        UpdateNegativeFlag(_registerX);
-        UpdateZeroFlag(_registerX);
+        RegisterX++;
+        UpdateNegativeFlag(RegisterX);
+        UpdateZeroFlag(RegisterX);
     }
 
     /// <summary>
@@ -342,15 +345,17 @@ public class CPU
     {
         var operand = GetOperandAddress(mode);
         var value = _nesMemory.Read(operand);
-        
-        var temp = _registerA + value; // Addition itself
+
+        int carry = (_status & 0b0000_0001) == 0b0000_0001 ? 1 : 0;
+
+        var temp = RegisterA + value + carry; // Addition itself
 
         UpdateCarryFlag(temp);
         UpdateZeroFlag(temp);
-        UpdateOverflowFlag(_registerA, value, (byte)temp);
+        UpdateOverflowFlag(RegisterA, value, (byte)temp);
         UpdateNegativeFlag(temp);
-        
-        _registerA = (byte)temp;
+
+        RegisterA = (byte)temp;
     }
 
     /// <summary>
@@ -364,10 +369,10 @@ public class CPU
         var operand = GetOperandAddress(mode);
         var value = _nesMemory.Read(operand);
 
-        _registerA = (byte)(_registerA & value);
+        RegisterA = (byte)(RegisterA & value);
 
-        UpdateZeroFlag(_registerA);
-        UpdateNegativeFlag(_registerA);
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
     }
 
     /// <summary>
@@ -382,26 +387,26 @@ public class CPU
         ushort? operand = null;
         if (mode.Equals(AddressingMode.Accumulator))
         {
-            value = _registerA;
+            value = RegisterA;
         }
         else
         {
             operand = GetOperandAddress(mode);
             value = _nesMemory.Read(operand ?? throw new ArgumentNullException());
         }
-        
+
         var temp = value << 1;
-        
+
         UpdateCarryFlag(temp);
         UpdateZeroFlag(temp);
         UpdateNegativeFlag(temp);
 
         if (mode.Equals(AddressingMode.Accumulator))
         {
-            _registerA = (byte)temp;
+            RegisterA = (byte)temp;
             return;
         }
-        
+
         _nesMemory.Write(operand ?? throw new ArgumentNullException(), (byte)temp);
     }
 
@@ -413,10 +418,10 @@ public class CPU
     {
         var param = GetOperandAddress(mode);
         var value = _nesMemory.Read(param);
-        
-        _registerY = value;
-        UpdateZeroFlag(_registerY);
-        UpdateNegativeFlag(_registerY);
+
+        RegisterY = value;
+        UpdateZeroFlag(RegisterY);
+        UpdateNegativeFlag(RegisterY);
     }
 
     /// <summary>
@@ -430,15 +435,16 @@ public class CPU
             ProgramCounter++;
             return;
         }
-        
-        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
-        
+
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
+
         var param = GetOperandAddress(mode);
         var value = (sbyte)_nesMemory.Read(param);
 
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
-    
+
     /// <summary>
     /// BCS instruction. If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
     /// </summary>
@@ -450,15 +456,16 @@ public class CPU
             ProgramCounter++;
             return;
         }
-        
-        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
-        
+
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
+
         var param = GetOperandAddress(mode);
         var value = (sbyte)_nesMemory.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
-    
+
     /// <summary>
     /// BEQ instruction. If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
     /// </summary>
@@ -471,9 +478,10 @@ public class CPU
             ProgramCounter++;
             return;
         }
-        
-        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
-        
+
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+
         var param = GetOperandAddress(mode);
         var value = (sbyte)_nesMemory.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
@@ -493,7 +501,7 @@ public class CPU
         // 1. Zero Flag: Z = (A AND M) == 0
         // Note: usamos != 0 para saber se o resultado contém bits, 
         // e invertemos para a flag Zero (Z=1 se o resultado for 0).
-        if ((_registerA & value) == 0)
+        if ((RegisterA & value) == 0)
         {
             _status |= 0b0000_0010; // Liga bit 1 (Zero)
         }
@@ -504,8 +512,8 @@ public class CPU
 
         // 2. Negative e Overflow: Copia bits 7 e 6 DIRETAMENTE do valor lido
         // Primeiro, limpamos os bits 7 e 6 atuais do status para não "sujar"
-        _status &= 0b0011_1111; 
-    
+        _status &= 0b0011_1111;
+
         // Agora pegamos apenas os bits 7 e 6 do 'value' e injetamos no status
         _status |= (byte)(value & 0b1100_0000);
     }
@@ -516,18 +524,42 @@ public class CPU
     /// <param name="mode">Addressing mode (should be always "relative")</param>
     private void Bmi(AddressingMode mode)
     {
-        if (!mode.Equals(AddressingMode.Relative))  throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
         if ((_status & 0b1000_0000) != 0b1000_0000)
         {
             ProgramCounter++;
             return;
         }
-        
+
         var param = GetOperandAddress(mode);
         var value = (sbyte)_nesMemory.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
-    
+
+    /// <summary>
+    /// BNE Instruction. PC = PC + 2 + memory (signed)
+    /// If the zero flag is clear, BNE branches to a nearby location by adding the branch offset to the program counter. The offset is signed and has a range of [-128, 127] relative to the first byte after the branch instruction. Branching further than that requires using a JMP instruction, instead, and branching over that JMP when negative is set with BEQ
+    ///  .
+    /// Comparison uses this flag to indicate if the compared values are equal. All instructions that change A, X, or Y also implicitly set or clear the zero flag depending on whether the register becomes 0. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Bne(AddressingMode mode)
+    {
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+        if ((_status & 0b0000_0010) == 0b0000_0010)
+        {
+            ProgramCounter++;
+            return;
+        }
+
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+
     #endregion
 
     #region Addressing
@@ -576,15 +608,15 @@ public class CPU
                 addrUshort = GetIndirectX();
                 ProgramCounter++;
                 return addrUshort;
-                
+
             case AddressingMode.IndirectY:
                 addrUshort = GetIndirectY();
                 ProgramCounter++;
                 return addrUshort;
-            
+
             case AddressingMode.Relative:
                 return ProgramCounter++;
-            
+
             default:
                 throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
         }
@@ -593,7 +625,7 @@ public class CPU
     private ushort GetIndirectX()
     {
         var baseAddr = _nesMemory.Read(ProgramCounter);
-        var ptr = WappingAdd(baseAddr, _registerX);
+        var ptr = WappingAdd(baseAddr, RegisterX);
 
         var lo = _nesMemory.Read(ptr);
         var hi = _nesMemory.Read(WappingAdd(ptr, 1));
@@ -608,31 +640,31 @@ public class CPU
         var hi = _nesMemory.Read(WappingAdd(baseAddr, (byte)1));
         var ptr = (ushort)((hi << 8) | lo); // Ponteiro 16-bit
 
-        return WappingAdd(ptr, _registerY); // ptr + Y
+        return WappingAdd(ptr, RegisterY); // ptr + Y
     }
 
     private ushort GetAbsoluteX()
     {
         var baseAddr = _nesMemory.ReadLittleEndian(ProgramCounter);
-        return WappingAdd(baseAddr, _registerX);
+        return WappingAdd(baseAddr, RegisterX);
     }
 
     private ushort GetAbsoluteY()
     {
         var baseAddr = _nesMemory.ReadLittleEndian(ProgramCounter);
-        return WappingAdd(baseAddr, _registerY);
+        return WappingAdd(baseAddr, RegisterY);
     }
 
     private byte GetZeroPageY()
     {
         var baseAddr = _nesMemory.Read(ProgramCounter);
-        return WappingAdd(baseAddr, _registerY);
+        return WappingAdd(baseAddr, RegisterY);
     }
 
     private byte GetZeroPageX()
     {
         var baseAddr = _nesMemory.Read(ProgramCounter);
-        return WappingAdd(baseAddr, _registerX);
+        return WappingAdd(baseAddr, RegisterX);
     }
 
     private byte WappingAdd(byte a, byte b)

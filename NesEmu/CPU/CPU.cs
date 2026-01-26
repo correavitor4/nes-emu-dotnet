@@ -270,6 +270,9 @@ public class CPU
 
         // BLP
         _instructions.Add(0x10, () => Blp(AddressingMode.Relative));
+
+        // BVC
+        _instructions.Add(0x50, () => Bvc(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -579,6 +582,31 @@ public class CPU
 
 
         if ((_status & 0b1000_0000) == 0b1000_0000)
+        {
+            ProgramCounter++;
+            return;
+        }
+
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+
+    /// <summary>
+    /// BVC Instruction.
+    /// PC = PC + 2 + memory (signed)
+    /// If the overflow flag is clear, BVC branches to a nearby location by adding the branch offset to the program counter. The offset is signed and has a range of [-128, 127] relative to the first byte after the branch instruction. Branching further than that requires using a JMP instruction, instead, and branching over that JMP when overflow is set with BVS.
+    /// Unlike zero, negative, and even carry, overflow is modified by very few instructions. It is most often used with the BIT instruction, particularly for polling hardware registers. It is also sometimes used for signed overflow with ADC and SBC. The standard 6502 chip allows an external device to set overflow using a pin, enabling software to poll for that event, but this is not present on the NES' 2A03. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Bvc(AddressingMode mode)
+    {
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+
+        if ((_status & 0b0100_0000) == 0b0100_0000)
         {
             ProgramCounter++;
             return;

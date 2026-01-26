@@ -1407,6 +1407,59 @@ public class InstructionsTests
 
     #endregion
 
+    #region BVC
+
+    [Theory]
+    [InlineData(0x05, 107)] // Salto para frente: 100 + 2 + 5 = 107
+    [InlineData(0xFB, 97)] // Salto para trás (-5): 100 + 2 - 5 = 97
+    public void TestBvc__WithOverflowFlagClear__ShouldJumpCorrectly(byte offset, ushort expectedPc)
+    {
+        // Arrange
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0x50; // BVC Opcode
+        program[initialPc + 1] = offset;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // V = 0 (Overflow limpo, BVC deve pular)
+        cpu.SetStatusFlag(0b0000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(expectedPc, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBvc__WithOverflowFlagSet__ShouldNotJump()
+    {
+        // Arrange
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0x50; // BVC
+        program[initialPc + 1] = 0x05; // Offset +5
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // V = 1 (Overflow setado, BVC NÃO deve pular)
+        cpu.SetStatusFlag(0b0100_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Deve apenas avançar os 2 bytes da instrução BVC
+        Assert.Equal((ushort)(initialPc + 2), cpu.ProgramCounter);
+    }
+
+    #endregion
+
     #region Addressing
 
     [Fact]

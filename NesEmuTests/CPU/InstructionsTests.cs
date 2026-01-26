@@ -1332,6 +1332,81 @@ public class InstructionsTests
 
     #endregion
 
+    #region BPL
+
+    [Theory]
+    [InlineData(0x05, 107)] // Salto para frente: 100 + 2 + 5 = 107
+    [InlineData(0xFB, 97)] // Salto para trás (-5): 100 + 2 - 5 = 97
+    [InlineData(0x00, 102)] // Salto nulo: 100 + 2 + 0 = 102
+    public void TestBpl__WithNegativeFlagClear__ShouldJumpCorrectly(byte offset, ushort expectedPc)
+    {
+        // Arrange
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0x10; // BPL Opcode
+        program[initialPc + 1] = offset;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // N = 0 (Positivo, BPL deve pular)
+        cpu.SetStatusFlag(0b0000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(expectedPc, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBpl__WithNegativeFlagSet__ShouldNotJump()
+    {
+        // Arrange
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0x10; // BPL
+        program[initialPc + 1] = 0x05; // Offset +5
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // N = 1 (Negativo, BPL NÃO deve pular)
+        cpu.SetStatusFlag(0b1000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Deve apenas avançar os 2 bytes da instrução BPL
+        Assert.Equal((ushort)(initialPc + 2), cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestBpl__MaxPositiveJump__ShouldWork()
+    {
+        // Arrange: Salto de +127 (0x7F)
+        ushort initialPc = 100;
+        var program = new byte[0x10000];
+        program[initialPc] = 0x10;
+        program[initialPc + 1] = 0x7F;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+        cpu.SetStatusFlag(0); // N = 0
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert: 100 + 2 + 127 = 229
+        Assert.Equal(229, cpu.ProgramCounter);
+    }
+
+    #endregion
+
     #region Addressing
 
     [Fact]

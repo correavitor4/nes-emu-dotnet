@@ -267,6 +267,9 @@ public class CPU
 
         // BNE 
         _instructions.Add(0xD0, () => Bne(AddressingMode.Relative));
+
+        // BLP
+        _instructions.Add(0x10, () => Blp(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -307,6 +310,7 @@ public class CPU
         UpdateNegativeFlag(RegisterX);
     }
 
+    //TODO: implementation and tests are missing
     /// <summary>
     /// Do nothing
     /// </summary>
@@ -550,6 +554,31 @@ public class CPU
         if (!mode.Equals(AddressingMode.Relative))
             throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
         if ((_status & 0b0000_0010) == 0b0000_0010)
+        {
+            ProgramCounter++;
+            return;
+        }
+
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+
+    /// <summary>
+    /// PC = PC + 2 + memory (signed)
+    /// If the negative flag is clear, BPL branches to a nearby location by adding the branch offset to the program counter. The offset is signed and has a range of [-128, 127] relative to the first byte after the branch instruction. Branching further than that requires using a JMP instruction, instead, and branching over that JMP when negative is set with BMI.
+    ///  All instructions that change A, X, or Y implicitly set or clear the negative flag based on bit 7 (the sign bit). 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Blp(AddressingMode mode)
+    {
+        if (!mode.Equals(AddressingMode.Relative))
+            throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+
+
+        if ((_status & 0b1000_0000) == 0b1000_0000)
         {
             ProgramCounter++;
             return;

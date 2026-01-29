@@ -279,6 +279,9 @@ public class CPU
 
         // CLC
         _instructions.Add(0x18, Clc);
+
+        // CLD
+        _instructions.Add(0xD8, Cld);
     }
 
     private void ResetRegisterStatus()
@@ -660,6 +663,24 @@ public class CPU
         _status = (byte)(_status & 0b1111_1110);
     }
 
+    /// <summary>
+    /// CLD instruction. Clear decimal bit D=0
+    /// CLD clears the decimal flag. The decimal flag normally controls whether binary-coded decimal mode (BCD) is enabled, but this mode is permanently disabled on the NES' 2A03 CPU. However, the flag itself still functions and can be used to store state. 
+    /// </summary>
+    private void Cld()
+    {
+        _status = (byte)(_status & 0b1111_0111);
+    }
+
+    /// <summary>
+    ///  CLI instruction. I=0.
+    /// CLI clears the interrupt disable flag, enabling the CPU to handle hardware IRQs. The effect of changing this flag is delayed one instruction because the flag is changed after IRQ is polled, allowing the next instruction to execute before any pending IRQ is detected and serviced. This flag has no effect on NMI, which (as the "non-maskable" name suggests) cannot be ignored by the CPU. 
+    /// </summary>
+    private void Cli()
+    {
+        
+    }
+    
     #endregion
 
     #region Addressing

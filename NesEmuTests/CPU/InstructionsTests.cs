@@ -1789,6 +1789,76 @@ public class InstructionsTests
 
     #endregion
 
+    #region CLD
+
+    [Fact]
+    public void TestCld__WithDecimalFlagOne__ShouldClearDecimalFlag()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xD8; // CLD Opcode
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // Liga a Decimal Flag (bit 3 -> 0x08 ou 0b0000_1000)
+        cpu.SetStatusFlag(0b0000_1000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O bit 3 deve ser 0 agora
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_1000);
+    }
+
+    [Fact]
+    public void TestCld__WithOtherFlagsSet__ShouldOnlyClearDecimal()
+    {
+        // Arrange
+        var program = new byte[0xFFFF];
+        program[0] = 0xD8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+
+        // N=1, V=1, D=1, C=1 (0b1100_1001) -> 0xC9
+        byte initialStatus = 0b1100_1001;
+        cpu.SetStatusFlag(initialStatus);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Apenas o bit 3 deve ter mudado. 
+        // Esperado: 0b1100_0001 (0xC1)
+        byte expectedStatus = 0b1100_0001;
+        Assert.Equal(expectedStatus, cpu.GetRegisterStatus());
+    }
+    
+    [Fact]
+    public void TestCld__ShouldIncrementProgramCounterByOne()
+    {
+        // Arrange
+        ushort initialPc = 0x8000;
+        var program = new byte[0x10000];
+        program[initialPc] = 0xD8; // CLD (1 byte)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // Act
+        cpu.Interpret(limit: 1); // Executa apenas a CLD
+
+        // Assert
+        // Como CLD é uma instrução de 1 byte, o PC deve ser initialPc + 1
+        Assert.Equal((ushort)(initialPc + 1), cpu.ProgramCounter);
+    }
+
+    #endregion
+
     #region LDA, TAX and INX workings together
 
     [Fact]

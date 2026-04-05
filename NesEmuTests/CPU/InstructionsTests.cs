@@ -1929,6 +1929,209 @@ public class InstructionsTests
 
     #endregion
 
+    #region CLV
+
+    [Fact]
+    public void TestClv__ShouldClearOverflowFlag()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xB8; // Opcode da CLV
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Liga o Overflow (bit 6 -> 0x40)
+        cpu.SetStatusFlag(0b0100_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O bit 6 deve ser 0 agora
+        Assert.Equal(0, cpu.GetRegisterStatus() & 0b0100_0000);
+    }
+
+    [Fact]
+    public void TestClv__ShouldNotAffectOtherFlags()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xB8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // N=1, V=1, C=1 (0b1100_0001)
+        byte initialStatus = 0b1100_0001;
+        cpu.SetStatusFlag(initialStatus);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Apenas o bit 6 deve mudar.
+        // Esperado: 0b1000_0001 (N e C continuam ativos)
+        Assert.Equal(0b1000_0001, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestClv__ShouldIncrementProgramCounterByOne()
+    {
+        // Arrange
+        ushort initialPc = 0x8000;
+        var program = new byte[0x10000];
+        program[initialPc] = 0xB8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Instrução de 1 byte: PC deve ir para 0x8001
+        Assert.Equal((ushort)(initialPc + 1), cpu.ProgramCounter);
+    }
+
+    #endregion
+
+    #region CMP - Comprehensive Tests
+
+    [Fact]
+    public void TestCmp__Immediate__ShouldCorrectlySetFlagsAndIncrementPC()
+    {
+        // Arrange: CMP #$05 (A=10, 10 > 5 -> C=1, Z=0, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC9; // Opcode CMP Immediate
+        program[0x8001] = 0x05; // Valor operando
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 10;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(10, cpu.RegisterA); // Garante que não alterou o acumulador
+        Assert.Equal(0x8002, cpu.ProgramCounter); // 2 bytes: Opcode + Operando
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry deve ser 1 (A >= M)
+        Assert.Equal(0, status & 0b0000_0010);           // Zero deve ser 0 (A != M)
+        Assert.Equal(0, status & 0b1000_0000);           // Negative deve ser 0
+    }
+
+    [Fact]
+    public void TestCmp__ZeroPage__ShouldCompareCorrectly()
+    {
+        // Arrange: CMP $10 (A=5, M=10 -> 5 < 10 -> C=0, Z=0, N=1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC5; // Opcode CMP ZeroPage
+        program[0x8001] = 0x10; // Endereço na ZP
+        program[0x0010] = 0x0A; // Valor 10 na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 5;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001);           // Carry deve ser 0 (A < M)
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative deve ser 1 (Bit 7 de 5-10 é 1)
+    }
+
+    [Fact]
+    public void TestCmp__Absolute__ShouldIncrementPCBy3()
+    {
+        // Arrange: CMP $2000 (A=255, M=255 -> 255 == 255 -> C=1, Z=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xCD; // Opcode CMP Absolute
+        program[0x8001] = 0x00; // ADDR Low
+        program[0x8002] = 0x20; // ADDR High
+        program[0x2000] = 0xFF; // Valor na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0xFF;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8003, cpu.ProgramCounter); // 3 bytes: Opcode + 2 bytes endereço
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero 1
+    }
+
+    [Fact]
+    public void TestCmp__Indirect_Y__ShouldHandleComplexAddressing()
+    {
+        // Arrange: CMP ($10), Y 
+        // ZP $10 aponta para $2000. Y = 5. Destino final = $2005.
+        var program = new byte[0x10000];
+        program[0x8000] = 0xD1; // CMP (Indirect), Y
+        program[0x8001] = 0x10; // Ponteiro ZP
+        program[0x0010] = 0x00; // Low pointer
+        program[0x0011] = 0x20; // High pointer
+        program[0x2005] = 0x50; // Valor na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x05;
+        cpu.RegisterA = 0x60; // 0x60 > 0x50
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8002, cpu.ProgramCounter); // PC avança 2 (Opcode + Ponteiro ZP)
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1 (A > M)
+        Assert.Equal(0, status & 0b0000_0010);           // Zero 0
+    }
+
+    [Fact]
+    public void TestCmp__ZeroPage_X__ShouldHandleWrapping()
+    {
+        // Arrange: CMP $FF, X (X=1, deve ler de $0000 devido ao wrap da Zero Page)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xD5; // CMP ZP, X
+        program[0x8001] = 0xFF;
+        program[0x0000] = 0x80; // Valor no endereço "enrolado"
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x01;
+        cpu.RegisterA = 0x00; // 0 < 128
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001); // Carry 0 (A < M)
+    }
+
+    #endregion
+
     #region LDA, TAX and INX workings together
 
     [Fact]

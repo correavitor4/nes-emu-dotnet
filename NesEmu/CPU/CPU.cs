@@ -285,6 +285,20 @@ public class CPU
 
         // CLI
         _instructions.Add(0x58, Cli);
+
+        // CLV
+        _instructions.Add(0xB8, Clv);
+
+        // CMP
+        _instructions.Add(0xC9, () => Cmp(AddressingMode.Immediate));
+        _instructions.Add(0xC5, () => Cmp(AddressingMode.ZeroPage));
+        _instructions.Add(0xD5, () => Cmp(AddressingMode.ZeroPageX));
+        _instructions.Add(0xCD, () => Cmp(AddressingMode.Absolute));    
+        _instructions.Add(0xDD, () => Cmp(AddressingMode.AbsoluteX));   
+        _instructions.Add(0xD9, () => Cmp(AddressingMode.AbsoluteY));
+        _instructions.Add(0xC1, () => Cmp(AddressingMode.IndirectX));
+        _instructions.Add(0xD1, () => Cmp(AddressingMode.IndirectY));
+
     }
 
     private void ResetRegisterStatus()
@@ -683,7 +697,55 @@ public class CPU
     {
         _status &= (byte)(_status & 0b1111_1011);
     }
-    
+
+    /// <summary>
+    /// CLV Instruction. V=0. 
+    /// CLV clears the overflow flag. There is no corresponding SEV instruction; instead, setting overflow is exposed on the 6502 CPU as a pin controlled by external hardware, and not exposed at all on the NES' 2A03 CPU. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Clv()
+    {
+        _status &= (byte)(_status & 0b1011_1111);
+    }
+
+    private void Cmp(AddressingMode addressingMode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Immediate,
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX,
+            AddressingMode.AbsoluteY,
+            AddressingMode.IndirectX,
+            AddressingMode.IndirectY
+        };
+
+        if (!allowedModes.Contains(addressingMode))
+            throw new InvalidEnumArgumentException("addressingMode", (int)addressingMode, typeof(AddressingMode));
+
+        var opAddr = GetOperandAddress(addressingMode);
+        var value = _nesMemory.Read(opAddr);
+        
+        var registerAValue = RegisterA;
+        var res = registerAValue - value;
+            
+        var carry = registerAValue >= value;
+        var zero = (res & 0xFF) == 0;
+        var negative = (res & 0b1000_0000) != 0;
+
+        _status = carry            ? (byte)(_status | 0b0000_0001) // Set Carry
+            : (byte)(_status & 0b1111_1110); // Clear Carry
+        _status = zero             ? (byte)(_status | 0b0000_0010) // Set Zero
+            : (byte)(_status & 0b1111_1101); // Clear Zero
+        _status = negative         ? (byte)(_status | 0b1000_0000) // Set Negative
+            : (byte)(_status & 0b0111_1111); // Clear Negative
+
+    }
+
     #endregion
 
     #region Addressing

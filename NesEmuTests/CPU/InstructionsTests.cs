@@ -1836,7 +1836,7 @@ public class InstructionsTests
         byte expectedStatus = 0b1100_0001;
         Assert.Equal(expectedStatus, cpu.GetRegisterStatus());
     }
-    
+
     [Fact]
     public void TestCld__ShouldIncrementProgramCounterByOne()
     {
@@ -1854,6 +1854,76 @@ public class InstructionsTests
 
         // Assert
         // Como CLD é uma instrução de 1 byte, o PC deve ser initialPc + 1
+        Assert.Equal((ushort)(initialPc + 1), cpu.ProgramCounter);
+    }
+
+    #endregion
+
+    #region CLI
+
+    [Fact]
+    public void TestCli__ShouldClearInterruptFlag()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0x58; // Opcode da CLI
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Forçamos a flag I (bit 2) para 1
+        cpu.SetStatusFlag(0b0000_0100);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O bit 2 deve ser 0
+        Assert.Equal(0, cpu.GetRegisterStatus() & 0b0000_0100);
+    }
+
+    [Fact]
+    public void TestCli__ShouldNotAffectOtherFlags()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0x58;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // N=1, V=1, I=1, C=1 (0b1100_0101)
+        byte initialStatus = 0b1100_0101;
+        cpu.SetStatusFlag(initialStatus);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Apenas o bit 2 deve mudar de 1 para 0
+        // Esperado: 0b1100_0001
+        Assert.Equal(0b1100_0001, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestCli__ShouldIncrementProgramCounterByOne()
+    {
+        // Arrange
+        ushort initialPc = 0x8000;
+        var program = new byte[0x10000];
+        program[initialPc] = 0x58;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = initialPc;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Como CLI é Implied (1 byte), o PC deve avançar apenas 1
         Assert.Equal((ushort)(initialPc + 1), cpu.ProgramCounter);
     }
 

@@ -282,6 +282,9 @@ public class CPU
 
         // CLD
         _instructions.Add(0xD8, Cld);
+
+        // CLI
+        _instructions.Add(0x58, Cli);
     }
 
     private void ResetRegisterStatus()
@@ -678,7 +681,7 @@ public class CPU
     /// </summary>
     private void Cli()
     {
-        
+        _status &= (byte)(_status & 0b1111_1011);
     }
     
     #endregion

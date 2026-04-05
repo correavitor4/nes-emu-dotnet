@@ -299,6 +299,11 @@ public class CPU
         _instructions.Add(0xC1, () => Cmp(AddressingMode.IndirectX));
         _instructions.Add(0xD1, () => Cmp(AddressingMode.IndirectY));
 
+
+        // CPX
+        _instructions.Add(0xE0, () => Cpx(AddressingMode.Immediate));
+        _instructions.Add(0xE4, () => Cpx(AddressingMode.ZeroPage));
+        _instructions.Add(0xEC, () => Cpx(AddressingMode.Absolute));
     }
 
     private void ResetRegisterStatus()
@@ -746,6 +751,40 @@ public class CPU
 
     }
 
+    /// <summary>
+    /// CPX - Instruction. Compare X Register (X - memory). 
+    /// CPX compares X to a memory value, setting flags as appropriate but not modifying any registers. The comparison is implemented as a subtraction, setting carry if there is no borrow, zero if the result is 0, and negative if the result is negative. However, carry and zero are often most easily remembered as inequalities. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Cpx(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Immediate,
+            AddressingMode.ZeroPage,
+            AddressingMode.Absolute
+        };
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+        
+        var registerXValue = RegisterX;
+        var res = registerXValue - value;
+            
+        var carry = registerXValue >= value;
+        var zero = (res & 0xFF) == 0;
+        var negative = (res & 0b1000_0000) != 0;
+        _status = carry            ? (byte)(_status | 0b0000_0001) // Set Carry
+            : (byte)(_status & 0b1111_1110); // Clear Carry
+        _status = zero             ? (byte)(_status | 0b0000_0010) // Set Zero
+            : (byte)(_status & 0b1111_1101); // Clear Zero
+        _status = negative         ? (byte)(_status | 0b1000_0000) // Set Negative
+            : (byte)(_status & 0b0111_1111); // Clear Negative
+    }
     #endregion
 
     #region Addressing

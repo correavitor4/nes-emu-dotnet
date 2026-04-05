@@ -2132,6 +2132,133 @@ public class InstructionsTests
 
     #endregion
 
+    #region CPX - Comprehensive Tests
+
+    [Fact]
+    public void TestCpx__Immediate__Equal__ShouldSetZeroAndCarry()
+    {
+        // Arrange: CPX #$10 (X=16, M=16 -> 16 == 16 -> Z=1, C=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE0; // Opcode CPX Immediate
+        program[0x8001] = 0x10; // Valor 16
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x10;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x10, cpu.RegisterX); // X não deve ser alterado
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1 (X >= M)
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero 1 (X == M)
+        Assert.Equal(0, status & 0b1000_0000);           // Negative 0
+    }
+
+    [Fact]
+    public void TestCpx__Immediate__Less__ShouldClearZeroAndCarry()
+    {
+        // Arrange: CPX #$20 (X=10, M=32 -> 10 < 32 -> Z=0, C=0, N=1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE0;
+        program[0x8001] = 0x20;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 10;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001);           // Carry 0 (X < M)
+        Assert.Equal(0, status & 0b0000_0010);           // Zero 0
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative 1 (10-32 resulta em bit 7 set)
+    }
+
+    [Fact]
+    public void TestCpx__ZeroPage__ShouldReadCorrectValue()
+    {
+        // Arrange: CPX $15 (X=50, M=40 -> 50 > 40 -> Z=0, C=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE4; // Opcode CPX ZeroPage
+        program[0x8001] = 0x15; // Endereço na ZP
+        program[0x0015] = 40;   // Valor na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 50;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8002, cpu.ProgramCounter); // 2 bytes: Opcode + Endereço ZP
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero 0
+    }
+
+    [Fact]
+    public void TestCpx__Absolute__ShouldIncrementPCBy3()
+    {
+        // Arrange: CPX $2000 (X=0, M=1 -> 0 < 1 -> Z=0, C=0, N=1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xEC; // Opcode CPX Absolute
+        program[0x8001] = 0x00; // Low
+        program[0x8002] = 0x20; // High
+        program[0x2000] = 0x01;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x00;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8003, cpu.ProgramCounter); // 3 bytes: Opcode + 2 bytes endereço
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001); // Carry 0
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative 1
+    }
+
+    [Fact]
+    public void TestCpx__HighBitComparison__ShouldSetNegativeFlag()
+    {
+        // Arrange: CPX #$01 (X=$80 (128), M=1 -> 128 > 1 -> C=1, Z=0, N=0)
+        // Nota: 128 - 1 = 127 (0111 1111). Bit 7 é 0, então N=0.
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE0;
+        program[0x8001] = 0x01;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x80;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1 (128 >= 1)
+        Assert.Equal(0, status & 0b1000_0000);           // Negative 0 (Resultado é 127)
+    }
+
+    #endregion
+
     #region LDA, TAX and INX workings together
 
     [Fact]

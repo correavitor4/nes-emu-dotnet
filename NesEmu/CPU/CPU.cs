@@ -105,6 +105,17 @@ public class CPU
         _registerY = value;
     }
 
+    // For testing
+    public void SetStatusFlag(byte newValue)
+    {
+        _status = newValue;
+    }
+
+    public void SetRegisterA(byte value)
+    {
+        _registerA = value;
+    }
+
     #endregion
 
     #region RegisterStatusHandlers
@@ -237,6 +248,22 @@ public class CPU
         _instructions.Add(0xB4, () => Ldy(AddressingMode.ZeroPageX));
         _instructions.Add(0xAC, () => Ldy(AddressingMode.Absolute));
         _instructions.Add(0xBC, () => Ldy(AddressingMode.AbsoluteX));
+        
+        // BCC
+        _instructions.Add(0x90, () => Bcc(AddressingMode.Relative));
+        
+        // BCS
+        _instructions.Add(0xB0, () => Bcs(AddressingMode.Relative));
+        
+        // BEQ
+        _instructions.Add(0xF0, () => Beq(AddressingMode.Relative));
+        
+        // BIT
+        _instructions.Add(0x24, (() => Bit(AddressingMode.ZeroPage)));
+        _instructions.Add(0x2C, (() => Bit(AddressingMode.Absolute)));
+        
+        // BMI
+        _instructions.Add(0x30, () => Bmi(AddressingMode.Relative));
     }
 
     private void ResetRegisterStatus()
@@ -391,6 +418,115 @@ public class CPU
         UpdateZeroFlag(_registerY);
         UpdateNegativeFlag(_registerY);
     }
+
+    /// <summary>
+    /// BCC instruction. If the carry flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Refers to Addressing mode</param>
+    private void Bcc(AddressingMode mode)
+    {
+        if ((_status & 0b0000_0001) != 0b0000_0000)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
+        
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+    
+    /// <summary>
+    /// BCS instruction. If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Refers to Addressing mode</param>
+    private void Bcs(AddressingMode mode)
+    {
+        if ((_status & 0b0000_0001) != 0b0000_0001)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
+        
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+
+    
+    /// <summary>
+    /// BEQ instruction. If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Refers to Addressing mode</param>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Beq(AddressingMode mode)
+    {
+        if ((_status & 0b0000_0010) != 0b0000_0010)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        if (!mode.Equals(AddressingMode.Relative)) throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+        
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
+
+    /// <summary>
+    /// BIT instruction. A & M, N = M7, V = M6
+    /// This instructions is used to test if one or more bits are set in a target memory location. The mask pattern in A is ANDed with the value in memory to set or clear the zero flag, but the result is not kept. Bits 7 and 6 of the value from memory are copied into the N and V flags.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Bit(AddressingMode mode)
+    {
+        var addr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(addr);
+
+        // 1. Zero Flag: Z = (A AND M) == 0
+        // Note: usamos != 0 para saber se o resultado contém bits, 
+        // e invertemos para a flag Zero (Z=1 se o resultado for 0).
+        if ((_registerA & value) == 0)
+        {
+            _status |= 0b0000_0010; // Liga bit 1 (Zero)
+        }
+        else
+        {
+            _status &= 0b1111_1101; // Desliga bit 1 (Zero)
+        }
+
+        // 2. Negative e Overflow: Copia bits 7 e 6 DIRETAMENTE do valor lido
+        // Primeiro, limpamos os bits 7 e 6 atuais do status para não "sujar"
+        _status &= 0b0011_1111; 
+    
+        // Agora pegamos apenas os bits 7 e 6 do 'value' e injetamos no status
+        _status |= (byte)(value & 0b1100_0000);
+    }
+
+    /// <summary>
+    ///  BMI instruction. If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    /// </summary>
+    /// <param name="mode">Addressing mode (should be always "relative")</param>
+    private void Bmi(AddressingMode mode)
+    {
+        if (!mode.Equals(AddressingMode.Relative))  throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
+        if ((_status & 0b1000_0000) != 0b1000_0000)
+        {
+            ProgramCounter++;
+            return;
+        }
+        
+        var param = GetOperandAddress(mode);
+        var value = (sbyte)_nesMemory.Read(param);
+        ProgramCounter = (ushort)(ProgramCounter + value);
+    }
     
     #endregion
 
@@ -445,6 +581,9 @@ public class CPU
                 addrUshort = GetIndirectY();
                 ProgramCounter++;
                 return addrUshort;
+            
+            case AddressingMode.Relative:
+                return ProgramCounter++;
             
             default:
                 throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));

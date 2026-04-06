@@ -2259,6 +2259,110 @@ public class InstructionsTests
 
     #endregion
 
+    #region CPY - Comprehensive Tests
+
+    [Fact]
+    public void TestCpy__Immediate__Equal__ShouldSetZeroAndCarry()
+    {
+        // Arrange: CPY #$20 (Y=32, M=32 -> 32 == 32 -> Z=1, C=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC0; // Opcode CPY Immediate
+        program[0x8001] = 0x20; // Valor 32
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x20;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x20, cpu.RegisterY); // Y não deve ser alterado
+        Assert.Equal(0x8002, cpu.ProgramCounter); // 2 bytes: Opcode + Valor
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1 (Y >= M)
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero 1 (Y == M)
+        Assert.Equal(0, status & 0b1000_0000);           // Negative 0
+    }
+
+    [Fact]
+    public void TestCpy__Immediate__Greater__ShouldSetCarryOnly()
+    {
+        // Arrange: CPY #$10 (Y=30, M=16 -> 30 > 16 -> Z=0, C=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC0;
+        program[0x8001] = 0x10;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 30;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero 0
+        Assert.Equal(0, status & 0b1000_0000);           // Negative 0
+    }
+
+    [Fact]
+    public void TestCpy__ZeroPage__ShouldCompareWithMemory()
+    {
+        // Arrange: CPY $20 (Y=10, M=50 -> 10 < 50 -> Z=0, C=0, N=1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC4; // Opcode CPY ZeroPage
+        program[0x8001] = 0x20; // Endereço ZP
+        program[0x0020] = 50;   // Valor na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 10;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001);           // Carry 0 (Y < M)
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative 1 (Bit 7 do resultado)
+    }
+
+    [Fact]
+    public void TestCpy__Absolute__ShouldIncrementPCBy3()
+    {
+        // Arrange: CPY $1234 (Y=128, M=128 -> Z=1, C=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xCC; // Opcode CPY Absolute
+        program[0x8001] = 0x34; // Low
+        program[0x8002] = 0x12; // High
+        program[0x1234] = 0x80;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x80;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8003, cpu.ProgramCounter); // 3 bytes: Opcode + 2 bytes endereço
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry 1
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero 1
+    }
+
+    #endregion
+
     #region LDA, TAX and INX workings together
 
     [Fact]

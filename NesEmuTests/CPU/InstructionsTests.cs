@@ -2582,4 +2582,128 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region DEX - Comprehensive Isolation Tests
+
+    [Fact]
+    public void TestDex__BasicDecrement__ShouldNotTouchOtherRegisters()
+    {
+        // Arrange: DEX (Opcode 0xCA)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xCA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Estado inicial controlado
+        cpu.RegisterA = 0xAA;
+        cpu.RegisterX = 0x05;
+        cpu.RegisterY = 0x22; // Use valores distintos para detectar erros
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x04, cpu.RegisterX);      // X decrementado
+        Assert.Equal(0xAA, cpu.RegisterA);      // A intacto
+        Assert.Equal(0x22, cpu.RegisterY);      // Y intacto
+        Assert.Equal(0x8001, cpu.ProgramCounter); // Avançou 1 byte
+    }
+
+    [Fact]
+    public void TestDex__Underflow__ShouldWrapToFFAndSetNegative()
+    {
+        // Arrange: 0x00 - 1 = 0xFF
+        var program = new byte[0x10000];
+        program[0x8000] = 0xCA;
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x00;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFF, cpu.RegisterX);
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative = 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero = 0
+    }
+
+    [Fact]
+    public void TestDex__BecomeZero__ShouldSetZeroFlag()
+    {
+        // Arrange: 0x01 - 1 = 0x00
+        var program = new byte[0x10000];
+        program[0x8000] = 0xCA;
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x01;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterX);
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero = 1
+    }
+
+    #endregion
+
+    #region DEY - Comprehensive Isolation Tests
+
+    [Fact]
+    public void TestDey__BasicDecrement__ShouldNotTouchOtherRegisters()
+    {
+        // Arrange: DEY (Opcode 0x88)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x88;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x11;
+        cpu.RegisterX = 0x22;
+        cpu.RegisterY = 0x01;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterY);      // Y decrementado para 0
+        Assert.Equal(0x11, cpu.RegisterA);      // A intacto
+        Assert.Equal(0x22, cpu.RegisterX);      // X intacto
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero Flag ativa
+        Assert.Equal(0, status & 0b1000_0000);           // Negative Flag inativa
+    }
+
+    [Fact]
+    public void TestDey__NegativeResult__ShouldSetNegativeFlag()
+    {
+        // Arrange: 0x81 - 1 = 0x80 (1000 0000)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x88;
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x81;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x80, cpu.RegisterY);
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative Flag ativa
+        Assert.Equal(0, status & 0b0000_0010);           // Zero Flag inativa
+    }
+
+    #endregion
 }

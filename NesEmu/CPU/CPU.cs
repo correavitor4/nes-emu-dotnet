@@ -293,8 +293,8 @@ public class CPU
         _instructions.Add(0xC9, () => Cmp(AddressingMode.Immediate));
         _instructions.Add(0xC5, () => Cmp(AddressingMode.ZeroPage));
         _instructions.Add(0xD5, () => Cmp(AddressingMode.ZeroPageX));
-        _instructions.Add(0xCD, () => Cmp(AddressingMode.Absolute));    
-        _instructions.Add(0xDD, () => Cmp(AddressingMode.AbsoluteX));   
+        _instructions.Add(0xCD, () => Cmp(AddressingMode.Absolute));
+        _instructions.Add(0xDD, () => Cmp(AddressingMode.AbsoluteX));
         _instructions.Add(0xD9, () => Cmp(AddressingMode.AbsoluteY));
         _instructions.Add(0xC1, () => Cmp(AddressingMode.IndirectX));
         _instructions.Add(0xD1, () => Cmp(AddressingMode.IndirectY));
@@ -309,12 +309,18 @@ public class CPU
         _instructions.Add(0xC0, () => Cpy(AddressingMode.Immediate));
         _instructions.Add(0xC4, () => Cpy(AddressingMode.ZeroPage));
         _instructions.Add(0xCC, () => Cpy(AddressingMode.Absolute));
-    
+
         // DEC
         _instructions.Add(0xC6, () => Dec(AddressingMode.ZeroPage));
         _instructions.Add(0xD6, () => Dec(AddressingMode.ZeroPageX));
         _instructions.Add(0xCE, () => Dec(AddressingMode.Absolute));
         _instructions.Add(0xDE, () => Dec(AddressingMode.AbsoluteX));
+
+        // DEX
+        _instructions.Add(0xCA, Dex);
+
+        // DEY
+        _instructions.Add(0x88, Dey);
     }
 
     private void ResetRegisterStatus()
@@ -745,19 +751,19 @@ public class CPU
 
         var opAddr = GetOperandAddress(addressingMode);
         var value = _nesMemory.Read(opAddr);
-        
+
         var registerAValue = RegisterA;
         var res = registerAValue - value;
-            
+
         var carry = registerAValue >= value;
         var zero = (res & 0xFF) == 0;
         var negative = (res & 0b1000_0000) != 0;
 
-        _status = carry            ? (byte)(_status | 0b0000_0001) // Set Carry
+        _status = carry ? (byte)(_status | 0b0000_0001) // Set Carry
             : (byte)(_status & 0b1111_1110); // Clear Carry
-        _status = zero             ? (byte)(_status | 0b0000_0010) // Set Zero
+        _status = zero ? (byte)(_status | 0b0000_0010) // Set Zero
             : (byte)(_status & 0b1111_1101); // Clear Zero
-        _status = negative         ? (byte)(_status | 0b1000_0000) // Set Negative
+        _status = negative ? (byte)(_status | 0b1000_0000) // Set Negative
             : (byte)(_status & 0b0111_1111); // Clear Negative
 
     }
@@ -782,18 +788,18 @@ public class CPU
 
         var opAddr = GetOperandAddress(mode);
         var value = _nesMemory.Read(opAddr);
-        
+
         var registerXValue = RegisterX;
         var res = registerXValue - value;
-            
+
         var carry = registerXValue >= value;
         var zero = (res & 0xFF) == 0;
         var negative = (res & 0b1000_0000) != 0;
-        _status = carry            ? (byte)(_status | 0b0000_0001) // Set Carry
+        _status = carry ? (byte)(_status | 0b0000_0001) // Set Carry
             : (byte)(_status & 0b1111_1110); // Clear Carry
-        _status = zero             ? (byte)(_status | 0b0000_0010) // Set Zero
+        _status = zero ? (byte)(_status | 0b0000_0010) // Set Zero
             : (byte)(_status & 0b1111_1101); // Clear Zero
-        _status = negative         ? (byte)(_status | 0b1000_0000) // Set Negative
+        _status = negative ? (byte)(_status | 0b1000_0000) // Set Negative
             : (byte)(_status & 0b0111_1111); // Clear Negative
     }
 
@@ -817,18 +823,18 @@ public class CPU
 
         var opAddr = GetOperandAddress(mode);
         var value = _nesMemory.Read(opAddr);
-        
+
         var registerYValue = RegisterY;
         var res = registerYValue - value;
-            
+
         var carry = registerYValue >= value;
         var zero = (res & 0xFF) == 0;
         var negative = (res & 0b1000_0000) != 0;
-        _status = carry            ? (byte)(_status | 0b0000_0001) // Set Carry
+        _status = carry ? (byte)(_status | 0b0000_0001) // Set Carry
             : (byte)(_status & 0b1111_1110); // Clear Carry
-        _status = zero             ? (byte)(_status | 0b0000_0010) // Set Zero
+        _status = zero ? (byte)(_status | 0b0000_0010) // Set Zero
             : (byte)(_status & 0b1111_1101); // Clear Zero
-        _status = negative         ? (byte)(_status | 0b1000_0000) // Set Negative
+        _status = negative ? (byte)(_status | 0b1000_0000) // Set Negative
             : (byte)(_status & 0b0111_1111); // Clear Negative
     }
 
@@ -859,9 +865,38 @@ public class CPU
         var value = _nesMemory.Read(opAddr);
         value--;
         _nesMemory.Write(opAddr, value);
-        
+
         UpdateZeroFlag(value);
         UpdateNegativeFlag(value);
+    }
+
+    /// <summary>
+    /// DEX instruction. It decrements register_x value
+    /// X = X - 1
+    // DEX subtracts 1 from the X register. Note that it does not affect carry nor overflow. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Dex()
+    {
+        RegisterX--;
+        UpdateZeroFlag(RegisterX);
+        UpdateNegativeFlag(RegisterX);
+    }
+
+    /// <summary>
+    /// DEY instruction. It decrements register_y value
+    /// Y = Y - 1
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Dey()
+    {
+        RegisterY--;
+        UpdateZeroFlag(RegisterY);
+        UpdateNegativeFlag(RegisterY);
     }
 
     #endregion

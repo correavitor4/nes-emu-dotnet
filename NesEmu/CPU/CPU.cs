@@ -309,6 +309,12 @@ public class CPU
         _instructions.Add(0xC0, () => Cpy(AddressingMode.Immediate));
         _instructions.Add(0xC4, () => Cpy(AddressingMode.ZeroPage));
         _instructions.Add(0xCC, () => Cpy(AddressingMode.Absolute));
+    
+        // DEC
+        _instructions.Add(0xC6, () => Dec(AddressingMode.ZeroPage));
+        _instructions.Add(0xD6, () => Dec(AddressingMode.ZeroPageX));
+        _instructions.Add(0xCE, () => Dec(AddressingMode.Absolute));
+        _instructions.Add(0xDE, () => Dec(AddressingMode.AbsoluteX));
     }
 
     private void ResetRegisterStatus()
@@ -824,6 +830,38 @@ public class CPU
             : (byte)(_status & 0b1111_1101); // Clear Zero
         _status = negative         ? (byte)(_status | 0b1000_0000) // Set Negative
             : (byte)(_status & 0b0111_1111); // Clear Negative
+    }
+
+
+    /// <summary>
+    /// memory = memory - 1
+    // DEC subtracts 1 from a memory location. Notably, there is no version of this instruction for the accumulator; ADC or SBC must be used, instead.
+    // This is a read-modify-write instruction, meaning that it first writes the original value back to memory before the modified value. This extra write can matter if targeting a hardware register.
+    // Note that decrement does not affect carry nor overflow. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Dec(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX
+        }
+        ;
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+        value--;
+        _nesMemory.Write(opAddr, value);
+        
+        UpdateZeroFlag(value);
+        UpdateNegativeFlag(value);
     }
 
     #endregion

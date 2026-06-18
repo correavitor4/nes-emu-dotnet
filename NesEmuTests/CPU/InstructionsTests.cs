@@ -2913,4 +2913,155 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region INC - Comprehensive Tests
+
+    [Fact]
+    public void TestInc__ZeroPage__BasicIncrement()
+    {
+        // Arrange: INC $10 (Valor 04 vira 05)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE6; // Opcode INC ZeroPage
+        program[0x8001] = 0x10; // Endereço na ZP
+        program[0x0010] = 0x04; // Valor inicial
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Força Carry e Overflow para 1 para garantir que INC NÃO vai alterá-los
+        cpu.SetStatusFlag(0b0100_0001); // V=1, C=1
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x05, mem.Read(0x0010)); // 4 + 1 = 5 na memória
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry CONTINUA 1
+        Assert.Equal(0b0100_0000, status & 0b0100_0000); // Overflow CONTINUA 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero deve ser 0
+        Assert.Equal(0, status & 0b1000_0000);           // Negative deve ser 0
+    }
+
+    [Fact]
+    public void TestInc__ZeroPage__ShouldWrapToZeroAndSetZeroFlag()
+    {
+        // Arrange: INC $10 (Valor FF vira 00)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE6;
+        program[0x8001] = 0x10;
+        program[0x0010] = 0xFF; // Limite de 8 bits
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStatusFlag(0); // Garante flags limpas
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, mem.Read(0x0010)); // Estouro controlado para 0
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero flag deve ser 1
+        Assert.Equal(0, status & 0b1000_0000);           // Negative flag deve ser 0
+        Assert.Equal(0, status & 0b0000_0001);           // Carry CONTINUA 0 (Mesmo com o estouro!)
+    }
+
+    [Fact]
+    public void TestInc__ZeroPage__ShouldSetNegativeFlag()
+    {
+        // Arrange: INC $10 (Valor 7F/127 vira 80/128 -> Bit 7 vira 1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE6;
+        program[0x8001] = 0x10;
+        program[0x0010] = 0x7F;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x80, mem.Read(0x0010));
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative flag deve ser 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero flag deve ser 0
+    }
+
+    [Fact]
+    public void TestInc__ZeroPage_X__ShouldIndexAndHandleWrapping()
+    {
+        // Arrange: INC $FF, X (X=1 -> Enrola para o endereço $0000 da Zero Page)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xF6; // Opcode INC ZP, X
+        program[0x8001] = 0xFF;
+        program[0x0000] = 0x10; // Valor no endereço resultante
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x01;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x11, mem.Read(0x0000)); // 16 + 1 = 17
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestInc__Absolute__ShouldIncrementAndAdvancePC3()
+    {
+        // Arrange: INC $2000 (3 bytes: Opcode + 2 bytes endereço)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xEE; // Opcode INC Absolute
+        program[0x8001] = 0x00; // Low
+        program[0x8002] = 0x20; // High
+        program[0x2000] = 0xFE;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFF, mem.Read(0x2000));
+        Assert.Equal(0x8003, cpu.ProgramCounter); // PC deve avançar exatamente 3 bytes
+    }
+
+    [Fact]
+    public void TestInc__Absolute_X__ShouldIndexCorrectly()
+    {
+        // Arrange: INC $2000, X (X=5 -> Endereço $2005)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xFE; // Opcode INC Absolute, X
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x20;
+        program[0x2005] = 0x09;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x0A, mem.Read(0x2005)); // 9 + 1 = 10
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+    }
+
+    #endregion
 }

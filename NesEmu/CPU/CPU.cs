@@ -331,6 +331,12 @@ public class CPU
         _instructions.Add(0x59, () => Eor(AddressingMode.AbsoluteY));
         _instructions.Add(0x41, () => Eor(AddressingMode.IndirectX));
         _instructions.Add(0x51, () => Eor(AddressingMode.IndirectY));
+
+        // INC
+        _instructions.Add(0xE6, () => Inc(AddressingMode.ZeroPage));
+        _instructions.Add(0xF6, () => Inc(AddressingMode.ZeroPageX));
+        _instructions.Add(0xEE, () => Inc(AddressingMode.Absolute));
+        _instructions.Add(0xFE, () => Inc(AddressingMode.AbsoluteX));
     }
 
 
@@ -946,6 +952,37 @@ public class CPU
         UpdateNegativeFlag(RegisterA);
     }
 
+    /// <summary>
+    /// INC instruction. memory = memory + 1
+    /// INC adds 1 to a memory location. Notably, there is no version of this instruction for the accumulator; ADC or SBC must be used, instead.
+    /// This is a read-modify-write instruction, meaning that it first writes the original value back to memory before the modified value. This extra write can matter if targeting a hardware register.
+    /// Note that increment does not affect carry nor overflow.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Inc(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX
+        }
+        ;
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+        value++;
+        _nesMemory.Write(opAddr, value);
+
+        UpdateZeroFlag(value);
+        UpdateNegativeFlag(value);
+        
+    }
     #endregion
 
     #region Addressing

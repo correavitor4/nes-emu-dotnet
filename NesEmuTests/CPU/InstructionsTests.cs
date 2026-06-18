@@ -3064,4 +3064,89 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region INY - Comprehensive Isolation Tests
+
+    [Fact]
+    public void TestIny__BasicIncrement__ShouldNotTouchOtherRegisters()
+    {
+        // Arrange: INY (Opcode 0xC8)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Valores controlados para garantir isolamento absoluto
+        cpu.RegisterA = 0x11;
+        cpu.RegisterX = 0x22;
+        cpu.RegisterY = 0x05;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x06, cpu.RegisterY);       // Y deve ser incrementado (5 + 1 = 6)
+        Assert.Equal(0x11, cpu.RegisterA);       // A deve continuar intacto
+        Assert.Equal(0x22, cpu.RegisterX);       // X deve continuar intacto
+        Assert.Equal(0x8001, cpu.ProgramCounter); // Avança exatamente 1 byte
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0010);   // Zero flag deve ser 0
+        Assert.Equal(0, status & 0b1000_0000);   // Negative flag deve ser 0
+    }
+
+    [Fact]
+    public void TestIny__WrapToZero__ShouldSetZeroFlagAndPreserveCarry()
+    {
+        // Arrange: INY (0xFF + 1 = 0x00 -> Estouro de 8 bits)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0xFF;
+
+        // Força Carry para 1 para garantir que INY NÃO mexe nele
+        cpu.SetStatusFlag(0b0000_0001); // C=1
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterY); // 255 + 1 vira 0 em 8 bits
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero flag deve ser 1
+        Assert.Equal(0, status & 0b1000_0000);           // Negative flag deve ser 0
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry CONTINUA 1 (Incrementos não afetam Carry)
+    }
+
+    [Fact]
+    public void TestIny__BecomeNegative__ShouldSetNegativeFlag()
+    {
+        // Arrange: INY (0x7F/127 + 1 = 0x80/128 -> Bit 7 vira 1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xC8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x7F;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x80, cpu.RegisterY);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative flag deve ser 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero flag deve ser 0
+    }
+
+    #endregion
 }

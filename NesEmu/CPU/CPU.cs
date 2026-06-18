@@ -337,6 +337,10 @@ public class CPU
         _instructions.Add(0xF6, () => Inc(AddressingMode.ZeroPageX));
         _instructions.Add(0xEE, () => Inc(AddressingMode.Absolute));
         _instructions.Add(0xFE, () => Inc(AddressingMode.AbsoluteX));
+
+
+        // INY
+        _instructions.Add(0xC8, Iny);
     }
 
 
@@ -983,6 +987,24 @@ public class CPU
         UpdateNegativeFlag(value);
         
     }
+
+    /// <summary>
+    /// iny instruction. It increments register_y value
+    /// Y = Y + 1
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Iny()
+    {
+        RegisterY++;
+        UpdateZeroFlag(RegisterY);
+        UpdateNegativeFlag(RegisterY);
+    }
+
+
+
+
     #endregion
 
     #region Addressing

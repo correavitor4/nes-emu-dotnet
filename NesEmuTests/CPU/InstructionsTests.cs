@@ -3149,4 +3149,86 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region JMP - Comprehensive Tests Including Hardware Bug
+
+    [Fact]
+    public void TestJmp__Absolute__ShouldChangeProgramCounterDirectly()
+    {
+        // Arrange: JMP $1234 (Opcode 0x4C)
+        // A instrução está em $8000, e o PC deve virar $1234 imediatamente
+        var program = new byte[0x10000];
+        program[0x8000] = 0x4C; // Opcode JMP Absolute
+        program[0x8001] = 0x34; // Low Address
+        program[0x8002] = 0x12; // High Address
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O PC não avança +3 relativo a $8000, ele é FORÇADO para o destino $1234
+        Assert.Equal(0x1234, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestJmp__Indirect__NormalBoundary__ShouldResolvePointerCorrectly()
+    {
+        // Arrange: JMP ($2000) (Opcode 0x6C)
+        // O ponteiro está em $2000/$2001 e guarda o endereço final $5678
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6C; // Opcode JMP Indirect
+        program[0x8001] = 0x00; // Pointer Low ($00)
+        program[0x8002] = 0x20; // Pointer High ($20)
+
+        program[0x2000] = 0x78; // Target Low
+        program[0x2001] = 0x56; // Target High
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Comportamento normal: Lê $2000 e $2001, saltando para $5678
+        Assert.Equal(0x5678, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestJmp__Indirect__PageBoundaryBug__ShouldReplicateHardwareBug()
+    {
+        // Arrange: JMP ($03FF) -> CASO CRÍTICO DO BUG DE HARDWARE
+        // O ponteiro termina em $FF. 
+        // Comportamento CORRETO esperado do hardware real (com o bug):
+        // 1. Lê o Low byte de $03FF
+        // 2. "Enrola" para a mesma página e lê o High byte de $0300 (em vez de $0400)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6C; // Opcode JMP Indirect
+        program[0x8001] = 0xFF; // Pointer Low ($FF)
+        program[0x8002] = 0x03; // Pointer High ($03)
+
+        program[0x03FF] = 0x12; // Low byte do destino colocado em $03FF
+        program[0x0300] = 0x80; // High byte do destino colocado em $0300 (Onde a CPU bugada vai ler)
+        program[0x0400] = 0x00; // Valor em $0400 que DEVERIA ser lido se não houvesse o bug
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Se o seu emulador for fiel ao NES, ele vai juntar o High ($80) de $0300 com o Low ($12) de $03FF
+        // Resultado bugado esperado: $8012
+        // Se o seu emulador saltar para $0012, significa que você corrigiu o bug (o que é incorreto para o NES!)
+        Assert.Equal(0x8012, cpu.ProgramCounter);
+    }
+
+    #endregion
 }

@@ -13,5 +13,7 @@ public enum AddressingMode
     IndirectY,
     Accumulator,
     NoneAddressing,
-    Relative
+    Relative,
+
+    IndirectWithPageIncrementBug,
 }

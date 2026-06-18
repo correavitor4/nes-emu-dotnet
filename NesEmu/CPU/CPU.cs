@@ -341,6 +341,10 @@ public class CPU
 
         // INY
         _instructions.Add(0xC8, Iny);
+
+        // JMP
+        _instructions.Add(0x4C, () => JMP(AddressingMode.Absolute));
+        _instructions.Add(0x6C, () => JMP(AddressingMode.IndirectWithPageIncrementBug));
     }
 
 
@@ -1002,6 +1006,25 @@ public class CPU
         UpdateNegativeFlag(RegisterY);
     }
 
+    /// <summary>
+    /// JMP instruction. It sets the program counter to the address specified by the operand.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void JMP(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Absolute,
+            AddressingMode.IndirectWithPageIncrementBug
+        };
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var addr = GetOperandAddress(mode);
+        ProgramCounter = addr;
+
+    }
 
 
 
@@ -1061,6 +1084,11 @@ public class CPU
 
             case AddressingMode.Relative:
                 return ProgramCounter++;
+
+            case AddressingMode.IndirectWithPageIncrementBug:
+                addrUshort = GetIndirectWithPageIncrementBug();
+                ProgramCounter++;
+                return addrUshort;
 
             default:
                 throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
@@ -1130,6 +1158,14 @@ public class CPU
     private ushort GetAddressAbsolute()
     {
         return _nesMemory.ReadLittleEndian(ProgramCounter);
+    }
+
+    private ushort GetIndirectWithPageIncrementBug()
+    {
+        var addr = _nesMemory.ReadLittleEndian(ProgramCounter);
+        var lo = _nesMemory.Read(addr);
+        var hi = _nesMemory.Read((ushort)((addr & 0xFF00) | ((addr + 1) & 0x00FF))); // Bug: não incrementa o byte alto
+        return (ushort)((hi << 8) | lo);
     }
 
     #endregion

@@ -2706,4 +2706,211 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region EOR - Comprehensive Tests
+
+    [Fact]
+    public void TestEor__Immediate__BasicXorAndIsolation()
+    {
+        // Arrange: EOR #$AA (A = 0x55 ^ 0xAA = 0xFF -> Z=0, N=1)
+        // 0x55 (0101 0101) ^ 0xAA (1010 1010) = 0xFF (1111 1111)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x49; // Opcode EOR Immediate
+        program[0x8001] = 0xAA; // Operando
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Valores controlados para testar isolamento
+        cpu.RegisterA = 0x55;
+        cpu.RegisterX = 0x11;
+        cpu.RegisterY = 0x22;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFF, cpu.RegisterA);       // Resultado do XOR
+        Assert.Equal(0x11, cpu.RegisterX);       // X deve continuar intacto
+        Assert.Equal(0x22, cpu.RegisterY);       // Y deve continuar intacto
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes (Opcode + Operando)
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0010);           // Zero flag deve ser 0
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative flag deve ser 1 (bit 7 de 0xFF é 1)
+    }
+
+    [Fact]
+    public void TestEor__ZeroPage__ShouldSetZeroFlag()
+    {
+        // Arrange: EOR $10 (A = 0xF0 ^ 0xF0 = 0x00 -> Z=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x45; // Opcode EOR ZeroPage
+        program[0x8001] = 0x10; // Endereço ZP
+        program[0x0010] = 0xF0; // Valor na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0xF0;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero flag deve ser 1
+        Assert.Equal(0, status & 0b1000_0000);           // Negative flag deve ser 0
+    }
+
+    [Fact]
+    public void TestEor__ZeroPageX__ShouldHandleWrapping()
+    {
+        // Arrange: EOR $FF, X (X=1 -> Enrola para endereço $0000 da Zero Page)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x55; // Opcode EOR ZP, X
+        program[0x8001] = 0xFF;
+        program[0x0000] = 0x0F; // Valor no endereço final após o wrap
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x01;
+        cpu.RegisterA = 0xFF; // 0xFF ^ 0x0F = 0xF0
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xF0, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestEor__Absolute__ShouldReadCorrectlyAndIncrementPC3()
+    {
+        // Arrange: EOR $2000 (A = 0x01 ^ 0x00 = 0x01)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x4D; // Opcode EOR Absolute
+        program[0x8001] = 0x00; // Low
+        program[0x8002] = 0x20; // High
+        program[0x2000] = 0x00;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0x01;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x01, cpu.RegisterA);
+        Assert.Equal(0x8003, cpu.ProgramCounter); // 3 bytes: Opcode + 2 bytes endereço
+    }
+
+    [Fact]
+    public void TestEor__AbsoluteX__ShouldIndexCorrectly()
+    {
+        // Arrange: EOR $2000, X (X=5 -> Endereço $2005)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x5D; // Opcode EOR Absolute, X
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x20;
+        program[0x2005] = 0x55;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+        cpu.RegisterA = 0x55; // 0x55 ^ 0x55 = 0x00
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestEor__AbsoluteY__ShouldIndexCorrectly()
+    {
+        // Arrange: EOR $1000, Y (Y=2 -> Endereço $1002)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x59; // Opcode EOR Absolute, Y
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x10;
+        program[0x1002] = 0xAA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x02;
+        cpu.RegisterA = 0x00; // 0x00 ^ 0xAA = 0xAA
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xAA, cpu.RegisterA);
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestEor__IndirectX__ShouldResolvePointer()
+    {
+        // Arrange: EOR ($10, X) -> X=5 -> Ponteiro ZP em $15 aponta para $2000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x41; // Opcode EOR (Indirect, X)
+        program[0x8001] = 0x10;
+        program[0x0015] = 0x00; // Low pointer target
+        program[0x0016] = 0x20; // High pointer target
+        program[0x2000] = 0xCC;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+        cpu.RegisterA = 0xCC; // 0xCC ^ 0xCC = 0x00
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+    }
+
+    [Fact]
+    public void TestEor__IndirectY__ShouldResolvePointerAndAddIndex()
+    {
+        // Arrange: EOR ($10), Y -> Ponteiro ZP em $10 aponta para $2000. Y=5 -> Destino $2005
+        var program = new byte[0x10000];
+        program[0x8000] = 0x51; // Opcode EOR (Indirect), Y
+        program[0x8001] = 0x10;
+        program[0x0010] = 0x00;
+        program[0x0011] = 0x20;
+        program[0x2005] = 0x33;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x05;
+        cpu.RegisterA = 0x00; // 0x00 ^ 0x33 = 0x33
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x33, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+    }
+
+    #endregion
 }

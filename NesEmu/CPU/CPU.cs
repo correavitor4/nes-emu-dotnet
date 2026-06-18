@@ -321,7 +321,18 @@ public class CPU
 
         // DEY
         _instructions.Add(0x88, Dey);
+
+        // EOR
+        _instructions.Add(0x49, () => Eor(AddressingMode.Immediate));
+        _instructions.Add(0x45, () => Eor(AddressingMode.ZeroPage));
+        _instructions.Add(0x55, () => Eor(AddressingMode.ZeroPageX));
+        _instructions.Add(0x4D, () => Eor(AddressingMode.Absolute));
+        _instructions.Add(0x5D, () => Eor(AddressingMode.AbsoluteX));
+        _instructions.Add(0x59, () => Eor(AddressingMode.AbsoluteY));
+        _instructions.Add(0x41, () => Eor(AddressingMode.IndirectX));
+        _instructions.Add(0x51, () => Eor(AddressingMode.IndirectY));
     }
+
 
     private void ResetRegisterStatus()
     {
@@ -897,6 +908,42 @@ public class CPU
         RegisterY--;
         UpdateZeroFlag(RegisterY);
         UpdateNegativeFlag(RegisterY);
+    }
+
+
+    /// <summary>
+    /// EOR Instruction
+    /// A = A ^ memory
+    /// EOR exclusive-ORs a memory value and the accumulator, bit by bit. If the input bits are different, the resulting bit is 1. If they are the same, it is 0. This operation is also known as XOR.
+    /// 6502 doesn't have a bitwise NOT instruction, but using EOR with value $FF has the same behavior, inverting every bit of the other value. In fact, EOR can be thought of as NOT with a bitmask; all the 1 bits in one value have the effect of inverting the corresponding bit in the other value, while 0 bits do nothing. 
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Eor(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Immediate,
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX,
+            AddressingMode.AbsoluteY,
+            AddressingMode.IndirectX,
+            AddressingMode.IndirectY
+        };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+
+        RegisterA = (byte)(RegisterA ^ value);
+
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
     }
 
     #endregion

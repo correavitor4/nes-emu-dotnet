@@ -3231,4 +3231,190 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region JSR - Comprehensive Subroutine and Stack Tests
+
+    [Fact]
+    public void TestJsr__BasicSubroutineCall__ShouldChangePCAndPushCorrectReturnAddress()
+    {
+        // Cenário: JSR $1234 a partir do endereço $8000.
+        // A instrução ocupa $8000, $8001, $8002. Próxima instrução seria $8003.
+        // O 6502 deve empilhar o endereço de retorno MENOS 1, ou seja, $8002.
+        var program = new byte[0x10000];
+        program[0x8000] = 0x20; // Opcode JSR
+        program[0x8001] = 0x34; // Target Low ($34)
+        program[0x8002] = 0x12; // Target High ($12)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Inicializa a pilha no topo padrão (0xFF)
+        cpu.SetStackPointer(0xFF);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert 1: O PC deve ter saltado exatamente para o destino de 16 bits
+        Assert.Equal(0x1234, cpu.ProgramCounter);
+
+        // Assert 2: O Stack Pointer deve ter descido 2 posições (de 0xFF para 0xFD)
+        Assert.Equal(0xFD, cpu.GetStackPointer());
+
+        // Assert 3: Verificar se o endereço de retorno ($8002) foi salvo corretamente na Página 1
+        // High byte ($80) vai primeiro em $01FF. Low byte ($02) vai depois em $01FE.
+        Assert.Equal(0x80, mem.Read(0x01FF)); // High byte do PC-1
+        Assert.Equal(0x02, mem.Read(0x01FE)); // Low byte do PC-1
+    }
+
+    [Fact]
+    public void TestJsr__Isolation__ShouldNotModifyAnyInternalRegisters()
+    {
+        // Cenário: Garantir que a JSR não cause "vazamento" de dados nos registradores de trabalho
+        var program = new byte[0x10000];
+        program[0x8000] = 0x20;
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x90;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Valores "mágicos" para testar o isolamento
+        cpu.RegisterA = 0xAA;
+        cpu.RegisterX = 0xBB;
+        cpu.RegisterY = 0xCC;
+        byte statusAntes = cpu.GetRegisterStatus();
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert: Nenhum registrador além do PC e S deve mudar
+        Assert.Equal(0xAA, cpu.RegisterA);
+        Assert.Equal(0xBB, cpu.RegisterX);
+        Assert.Equal(0xCC, cpu.RegisterY);
+        Assert.Equal(statusAntes, cpu.GetRegisterStatus()); // Nenhuma flag de status muda
+    }
+
+    [Fact]
+    public void TestJsr__StackPointerWrapping__ShouldHandlePage1Limits()
+    {
+        // Cenário: E se a pilha já estiver quase cheia? (Stack Pointer em 0x01)
+        // O High byte vai para $0101, o Low byte vai para $0100.
+        // O Stack Pointer deve decrescer de 0x01 -> 0x00 -> 0xFF (Wrap-around interno de 8 bits)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x20;
+        program[0x8001] = 0x50;
+        program[0x8002] = 0x50;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Força o Stack Pointer próximo do limite inferior da Página 1
+        cpu.SetStackPointer(0x01);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x5050, cpu.ProgramCounter);
+        Assert.Equal(0xFF, cpu.GetStackPointer()); // 0x01 - 2 = 0xFF (Wrap de 8 bits)
+
+        // Verifica se os bytes foram escritos nos endereços corretos da base da pilha
+        Assert.Equal(0x80, mem.Read(0x0101)); // High byte
+        Assert.Equal(0x02, mem.Read(0x0100)); // Low byte
+    }
+
+    [Fact]
+    public void TestJsr__ConsecutiveCalls__ShouldStackMultipleReturnAddresses()
+    {
+        // Cenário: Executar duas JSRs seguidas (Função chamando outra Função)
+        // 1ª JSR em $8000 chama $9000 -> Empilha $8002. Próximo PC = $9000.
+        // 2ª JSR em $9000 chama $A000 -> Empilha $9002. Próximo PC = $A000.
+        var program = new byte[0x10000];
+        // Primeira chamada
+        program[0x8000] = 0x20;
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x90;
+
+        // Segunda chamada posicionada no destino da primeira
+        program[0x9000] = 0x20;
+        program[0x9001] = 0x00;
+        program[0x9002] = 0xA0;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Act: Executa 2 instruções
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        Assert.Equal(0xA000, cpu.ProgramCounter);  // Destino final
+        Assert.Equal(0xFB, cpu.GetStackPointer());   // S caiu 4 vezes (0xFF -> 0xFB)
+
+        // Verifica a ordem cronológica invertida da pilha (LIFO)
+        // Primeira JSR (Base da pilha)
+        Assert.Equal(0x80, mem.Read(0x01FF)); // High 1
+        Assert.Equal(0x02, mem.Read(0x01FE)); // Low 1
+
+        // Segunda JSR (Topo da pilha)
+        Assert.Equal(0x90, mem.Read(0x01FD)); // High 2
+        Assert.Equal(0x02, mem.Read(0x01FC)); // Low 2
+    }
+
+    [Fact]
+    public void TestJsr__ExecutionFromZeroPage__ShouldStackZeroPageReturnAddress()
+    {
+        // Cenário: A JSR é executada a partir da Zero Page ($0050) para $8000.
+        // Ela ocupa $0050, $0051, $0052. O retorno decrementado deve ser $0052.
+        var program = new byte[0x10000];
+        program[0x0050] = 0x20; // JSR
+        program[0x0051] = 0x00; // Low
+        program[0x0052] = 0x80; // High
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x0050; // Começa na ZP
+        cpu.SetStackPointer(0xFF);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x8000, cpu.ProgramCounter);
+        Assert.Equal(0xFD, cpu.GetStackPointer());
+
+        // O endereço guardado deve ser $0052
+        Assert.Equal(0x00, mem.Read(0x01FF)); // High byte ($00)
+        Assert.Equal(0x52, mem.Read(0x01FE)); // Low byte ($52)
+    }
+
+    [Fact]
+    public void TestJsr__TargetingZeroPage__ShouldJumpToZeroPageAddress()
+    {
+        // Cenário: JSR chamando uma sub-rotina que fica na Zero Page ($0010)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x20;
+        program[0x8001] = 0x10; // Target Low
+        program[0x8002] = 0x00; // Target High
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x0010, cpu.ProgramCounter); // Pulou para a ZP
+        Assert.Equal(0x80, mem.Read(0x01FF));
+        Assert.Equal(0x02, mem.Read(0x01FE));
+    }
+
+    #endregion
 }

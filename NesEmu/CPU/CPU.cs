@@ -9,6 +9,7 @@ public class CPU
     public byte RegisterY { get; set; } = 0;
     private byte _status = 0;
     public ushort ProgramCounter = 0;
+    private byte StackPointer = 0xFF;
 
     private readonly Memory.NesMemory _nesMemory;
     private Dictionary<byte, Action> _instructions = new Dictionary<byte, Action>();
@@ -345,6 +346,9 @@ public class CPU
         // JMP
         _instructions.Add(0x4C, () => JMP(AddressingMode.Absolute));
         _instructions.Add(0x6C, () => JMP(AddressingMode.IndirectWithPageIncrementBug));
+
+        // JSR
+        _instructions.Add(0x20, () => Jsr(AddressingMode.Absolute));
     }
 
 
@@ -1026,11 +1030,34 @@ public class CPU
 
     }
 
+    /// <summary>
+    /// JSR instruction. It sets the program counter to the address specified by the operand and then pushes the address of the next instruction onto the stack.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Jsr(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Absolute
+        };
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var addr = GetOperandAddress(mode);
+
+        ushort returnAddr = (ushort)(ProgramCounter -1);
+
+        PushStack(returnAddr);
+        ProgramCounter = addr;
+    }
 
 
     #endregion
 
     #region Addressing
+
 
     public ushort GetOperandAddress(AddressingMode mode)
     {
@@ -1168,5 +1195,28 @@ public class CPU
         return (ushort)((hi << 8) | lo);
     }
 
+    #endregion
+
+    #region Stack
+    private void PushStack(ushort value)
+    {
+        var hi = (byte)(value >> 8);
+        var lo = (byte)(value & 0x00FF);
+        
+        _nesMemory.Write((ushort)(StackPointer + 0x0100), hi);
+        StackPointer--;
+        _nesMemory.Write((ushort)(StackPointer + 0x0100), lo);
+        StackPointer--;
+    }
+
+    public void SetStackPointer(int v)
+    {
+        StackPointer = (byte)v;
+    }
+
+    public byte GetStackPointer()
+    {
+        return StackPointer;
+    }
     #endregion
 }

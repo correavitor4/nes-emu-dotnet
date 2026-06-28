@@ -3417,4 +3417,155 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region LSR - Comprehensive Tests
+
+    [Fact]
+    public void TestLsr__Accumulator__BasicShift__ShouldPushBit0ToCarry()
+    {
+        // Arrange: LSR A (Opcode 0x4A)
+        // Inicial: 0b0000_0101 (5) -> Desloca -> 0b0000_0010 (2)
+        // Bit 0 era 1, então Carry vira 1.
+        var program = new byte[0x10000];
+        program[0x8000] = 0x4A; // LSR Accumulator
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0b0000_0101;
+        cpu.SetStatusFlag(0); // Limpa as flags
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x02, cpu.RegisterA); // 5 >> 1 = 2
+        Assert.Equal(0x8001, cpu.ProgramCounter); // Modo implícito/acumulador avança 1 byte
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry deve ser 1
+        Assert.Equal(0, status & 0b0000_0010);           // Zero deve ser 0
+        Assert.Equal(0, status & 0b1000_0000);           // Negative deve ser 0 (Sempre 0 na LSR)
+    }
+
+    [Fact]
+    public void TestLsr__Accumulator__ShouldSetZeroFlag()
+    {
+        // Arrange: LSR A (0x01 >> 1 = 0x00) -> Z=1, C=1
+        var program = new byte[0x10000];
+        program[0x8000] = 0x4A;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0x01;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero vira 1
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Carry vira 1
+    }
+
+    [Fact]
+    public void TestLsr__ZeroPage__ShouldModifyMemoryDirectly()
+    {
+        // Arrange: LSR $10 (Opcode 0x46)
+        // Memória: 0x40 (0100 0000) -> 0x20 (0010 0000). Bit 0 era 0 -> C=0
+        var program = new byte[0x10000];
+        program[0x8000] = 0x46; // LSR ZeroPage
+        program[0x8001] = 0x10;
+        program[0x0010] = 0x40; // Valor na RAM
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x20, mem.Read(0x0010)); // Alterou a memória!
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0001); // Carry deve ser 0
+    }
+
+    [Fact]
+    public void TestLsr__ZeroPageX__ShouldHandleIndexing()
+    {
+        // Arrange: LSR $10, X (Opcode 0x56) -> X=5 -> Endereço $15
+        // 0x03 (0000 0011) >> 1 = 0x01 (0000 0001). C=1
+        var program = new byte[0x10000];
+        program[0x8000] = 0x56;
+        program[0x8001] = 0x10;
+        program[0x0015] = 0x03;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x01, mem.Read(0x0015));
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+        Assert.Equal(0b0000_0001, cpu.GetRegisterStatus() & 0b0000_0001);
+    }
+
+    [Fact]
+    public void TestLsr__Absolute__ShouldAdvancePC3()
+    {
+        // Arrange: LSR $2000 (Opcode 0x4E)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x4E; // LSR Absolute
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x20;
+        program[0x2000] = 0xFF; // 1111 1111 -> 0111 1111 (0x7F), C=1
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x7F, mem.Read(0x2000));
+        Assert.Equal(0x8003, cpu.ProgramCounter); // Avança 3 bytes
+        Assert.Equal(0b0000_0001, cpu.GetRegisterStatus() & 0b0000_0001);
+    }
+
+    [Fact]
+    public void TestLsr__AbsoluteX__ShouldIndexCorrectly()
+    {
+        // Arrange: LSR $2000, X (Opcode 0x5E) -> X=1 -> Endereço $2001
+        var program = new byte[0x10000];
+        program[0x8000] = 0x5E;
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x20;
+        program[0x2001] = 0x08; // 0000 1000 >> 1 = 0000 0100 (4), C=0
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x01;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x04, mem.Read(0x2001));
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+        Assert.Equal(0, cpu.GetRegisterStatus() & 0b0000_0001);
+    }
+
+    #endregion
 }

@@ -106,7 +106,6 @@ public class CPU
         RegisterY = value;
     }
 
-    // For testing
     public void SetStatusFlag(byte newValue)
     {
         _status = newValue;
@@ -185,6 +184,14 @@ public class CPU
         }
 
         _status = (byte)(_status & 0b1111_1110);
+    }
+
+    private void SetCarryFlag(bool value)
+    {
+        if (value)
+            _status |= 0b0000_0001;
+        else
+            _status &= 0b1111_1110;
     }
 
     private void RegisterInstructions()
@@ -349,6 +356,14 @@ public class CPU
 
         // JSR
         _instructions.Add(0x20, () => Jsr(AddressingMode.Absolute));
+
+
+        // LSR
+        _instructions.Add(0x4A, () => Lsr(AddressingMode.Accumulator));
+        _instructions.Add(0x46, () => Lsr(AddressingMode.ZeroPage));
+        _instructions.Add(0x56, () => Lsr(AddressingMode.ZeroPageX));
+        _instructions.Add(0x4E, () => Lsr(AddressingMode.Absolute));
+        _instructions.Add(0x5E, () => Lsr(AddressingMode.AbsoluteX));
     }
 
 
@@ -1053,6 +1068,50 @@ public class CPU
         ProgramCounter = addr;
     }
 
+
+    /// <summary>
+    /// LSR instruction. It shifts a bit from the right of the accumulator to the carry flag.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Lsr(AddressingMode mode)
+    {
+        byte carry;
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Accumulator,
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX
+        };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+
+        if (mode == AddressingMode.Accumulator)
+        {
+            carry = (byte)(RegisterA & 1);
+            RegisterA >>= 1;
+            UpdateZeroFlag(RegisterA);
+            UpdateNegativeFlag(RegisterA);
+            SetCarryFlag(carry >= 1);
+            return;
+        }
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+
+        carry = (byte)(value & 1);
+        value >>= 1;
+        _nesMemory.Write(opAddr, value);
+
+        UpdateZeroFlag(value);
+        UpdateNegativeFlag(value);
+        SetCarryFlag(carry >= 1);
+    }
 
     #endregion
 

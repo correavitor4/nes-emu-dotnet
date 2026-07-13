@@ -3568,4 +3568,255 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region NOP - Isolation and Program Counter Tests
+
+    [Fact]
+    public void TestNop__OfficialOpcode__ShouldOnlyAdvancePCAndIsolateEverything()
+    {
+        // Arrange: NOP (Opcode 0xEA) posicionado em $8000
+        var program = new byte[0x10000];
+        program[0x8000] = 0xEA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Injeta valores controlados em tudo para garantir isolamento absoluto
+        cpu.RegisterA = 0x55;
+        cpu.RegisterX = 0xAA;
+        cpu.RegisterY = 0x22;
+        cpu.SetStackPointer(0xFD);
+
+        // Força um estado de flags conhecido (ex: liga todas as flags principais)
+        // N=1, V=1, Z=1, C=1
+        cpu.SetStatusFlag(0b1100_0011);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // 1. O PC deve avançar exatamente 1 byte
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+
+        // 2. Os registradores de trabalho e a pilha não podem ter mudado
+        Assert.Equal(0x55, cpu.RegisterA);
+        Assert.Equal(0xAA, cpu.RegisterX);
+        Assert.Equal(0x22, cpu.RegisterY);
+        Assert.Equal(0xFD, cpu.GetStackPointer());
+
+        // 3. As flags de status devem continuar exatamente iguais a antes
+        Assert.Equal(0b1100_0011, cpu.GetRegisterStatus());
+    }
+
+    #endregion
+
+    #region ORA - Comprehensive Tests
+
+    [Fact]
+    public void TestOra__Immediate__BasicOrAndIsolation()
+    {
+        // Arrange: ORA #$AA (A = 0x55 | 0xAA = 0xFF -> Z=0, N=1)
+        // 0x55 (0101 0101) | 0xAA (1010 1010) = 0xFF (1111 1111)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x09; // Opcode ORA Immediate
+        program[0x8001] = 0xAA; // Operando
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Valores controlados para testar isolamento
+        cpu.RegisterA = 0x55;
+        cpu.RegisterX = 0x11;
+        cpu.RegisterY = 0x22;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFF, cpu.RegisterA);       // Resultado do OR
+        Assert.Equal(0x11, cpu.RegisterX);       // X intacto
+        Assert.Equal(0x22, cpu.RegisterY);       // Y intacto
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Avança 2 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0010);           // Zero flag deve ser 0
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative flag deve ser 1 (bit 7 de 0xFF é 1)
+    }
+
+    [Fact]
+    public void TestOra__ZeroPage__ShouldSetZeroFlag()
+    {
+        // Arrange: ORA $10 (A = 0x00 | 0x00 = 0x00 -> Z=1, N=0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x05; // Opcode ORA ZeroPage
+        program[0x8001] = 0x10; // Endereço ZP
+        program[0x0010] = 0x00; // Valor na memória
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0x00;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero flag deve ser 1
+        Assert.Equal(0, status & 0b1000_0000);           // Negative flag deve ser 0
+    }
+
+    [Fact]
+    public void TestOra__ZeroPageX__ShouldHandleWrapping()
+    {
+        // Arrange: ORA $FF, X (X=1 -> Enrola para endereço $0000 da Zero Page)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x15; // Opcode ORA ZP, X
+        program[0x8001] = 0xFF;
+        program[0x0000] = 0x80; // Valor no endereço final (1000 0000)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x01;
+        cpu.RegisterA = 0x01; // 0x01 | 0x80 = 0x81
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x81, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // N=1 devido ao bit 7 ativo
+    }
+
+    [Fact]
+    public void TestOra__Absolute__ShouldReadCorrectlyAndIncrementPC3()
+    {
+        // Arrange: ORA $2000 (A = 0xF0 | 0x0F = 0xFF)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x0D; // Opcode ORA Absolute
+        program[0x8001] = 0x00; // Low
+        program[0x8002] = 0x20; // High
+        program[0x2000] = 0x0F;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterA = 0xF0;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFF, cpu.RegisterA);
+        Assert.Equal(0x8003, cpu.ProgramCounter); // 3 bytes
+    }
+
+    [Fact]
+    public void TestOra__AbsoluteX__ShouldIndexCorrectly()
+    {
+        // Arrange: ORA $2000, X (X=5 -> Endereço $2005)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x1D; // Opcode ORA Absolute, X
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x20;
+        program[0x2005] = 0x55;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+        cpu.RegisterA = 0x55; // 0x55 | 0x55 = 0x55
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x55, cpu.RegisterA);
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestOra__AbsoluteY__ShouldIndexCorrectly()
+    {
+        // Arrange: ORA $1000, Y (Y=2 -> Endereço $1002)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x19; // Opcode ORA Absolute, Y
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x10;
+        program[0x1002] = 0xAA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x02;
+        cpu.RegisterA = 0x00; // 0x00 | 0xAA = 0xAA
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xAA, cpu.RegisterA);
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestOra__IndirectX__ShouldResolvePointer()
+    {
+        // Arrange: ORA ($10, X) -> X=5 -> Ponteiro ZP em $15 aponta para $2000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x01; // Opcode ORA (Indirect, X)
+        program[0x8001] = 0x10;
+        program[0x0015] = 0x00; // Low pointer target
+        program[0x0016] = 0x20; // High pointer target
+        program[0x2000] = 0x07;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+        cpu.RegisterA = 0x70; // 0x70 | 0x07 = 0x77
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x77, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestOra__IndirectY__ShouldResolvePointerAndAddIndex()
+    {
+        // Arrange: ORA ($10), Y -> Ponteiro ZP em $10 aponta para $2000. Y=5 -> Destino $2005
+        var program = new byte[0x10000];
+        program[0x8000] = 0x11; // Opcode ORA (Indirect), Y
+        program[0x8001] = 0x10;
+        program[0x0010] = 0x00;
+        program[0x0011] = 0x20;
+        program[0x2005] = 0x33;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterY = 0x05;
+        cpu.RegisterA = 0x00; // 0x00 | 0x33 = 0x33
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x33, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+    }
+
+    #endregion
 }

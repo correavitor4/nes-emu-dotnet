@@ -364,6 +364,21 @@ public class CPU
         _instructions.Add(0x56, () => Lsr(AddressingMode.ZeroPageX));
         _instructions.Add(0x4E, () => Lsr(AddressingMode.Absolute));
         _instructions.Add(0x5E, () => Lsr(AddressingMode.AbsoluteX));
+
+
+        // NOP
+        _instructions.Add(0xEA, () => Nop());
+
+
+        // ORA
+        _instructions.Add(0x09, () => Ora(AddressingMode.Immediate));
+        _instructions.Add(0x05, () => Ora(AddressingMode.ZeroPage));
+        _instructions.Add(0x15, () => Ora(AddressingMode.ZeroPageX));
+        _instructions.Add(0x0D, () => Ora(AddressingMode.Absolute));
+        _instructions.Add(0x1D, () => Ora(AddressingMode.AbsoluteX));
+        _instructions.Add(0x19, () => Ora(AddressingMode.AbsoluteY));
+        _instructions.Add(0x01, () => Ora(AddressingMode.IndirectX));
+        _instructions.Add(0x11, () => Ora(AddressingMode.IndirectY));
     }
 
 
@@ -1112,6 +1127,45 @@ public class CPU
         UpdateNegativeFlag(value);
         SetCarryFlag(carry >= 1);
     }
+
+    /// <summary>
+    /// NOP Instruction. It performs no operation.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Nop() { }
+
+    /// <summary>
+    /// ORA instruction. It performs a logical OR between the accumulator and the value in memory and stores the result in the accumulator.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Ora(AddressingMode mode) { 
+
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Immediate,
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX,
+            AddressingMode.AbsoluteY,
+            AddressingMode.IndirectX,
+            AddressingMode.IndirectY
+        };
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+        RegisterA |= value;
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
+    }
+
 
     #endregion
 

@@ -3819,4 +3819,220 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region PHA - Push Accumulator Tests
+
+
+    #region PHP - Push Processor Status Tests
+
+    [Fact]
+    public void TestPhp__BasicPush__ShouldStoreFlagsWithBits4And5SetTo1()
+    {
+        // Arrange: PHP (Opcode 0x08) posicionado em $8000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x08;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Configura um estado onde todas as flags reais estão ZERADAS
+        // Status inicial: 0b0000_0000
+        cpu.SetStatusFlag(0x00);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // 1. O PC deve avançar 1 byte (modo Implied)
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+
+        // 2. O Stack Pointer deve ter decrementado em 1 unidade (0xFF -> 0xFE)
+        Assert.Equal(0xFE, cpu.GetStackPointer());
+
+        // 3. Na pilha, o valor salvo DEVE ter os bits 4 e 5 ligados (0b0011_0000 = 0x30)
+        // Mesmo que o status original estivesse zerado!
+        byte valorNaPilha = mem.Read(0x01FF);
+        Assert.Equal(0x30, valorNaPilha);
+        Assert.Equal(0b0011_0000, valorNaPilha & 0b0011_0000); // Bits 4 e 5 ativos
+
+        // 4. O status REAL da CPU deve continuar intacto (zerado, sem o "vazamento" dos bits 4 e 5)
+        Assert.Equal(0x00, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestPhp__WithActiveFlags__ShouldCombineExistingFlagsWithBits4And5()
+    {
+        // Arrange: PHP com algumas flags reais já ativas
+        var program = new byte[0x10000];
+        program[0x8000] = 0x08;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Ativa as flags Negative (0x80) e Carry (0x01) -> 0b1000_0001
+        cpu.SetStatusFlag((byte)((byte)StatusFlag.Negative | (byte)StatusFlag.Carry));
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O valor esperado na pilha é a combinação:
+        // Original (0b1000_0001) | Fantasma (0b0011_0000) = 0b1011_0001 (0xB1)
+        byte valorNaPilha = mem.Read(0x01FF);
+        Assert.Equal(0xB1, valorNaPilha);
+
+        // O status interno da CPU continua estritamente igual ao original
+        Assert.Equal(0x81, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestPhp__ConsecutivePushes__ShouldDecrementStackPointerCorrectly()
+    {
+        // Arrange: Duas instruções PHP seguidas
+        var program = new byte[0x10000];
+        program[0x8000] = 0x08;
+        program[0x8001] = 0x08;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Configura status: Zero flag ativa (0x02)
+        cpu.SetStatusFlag((byte)StatusFlag.Zero);
+
+        // Act
+        cpu.Interpret(limit: 2);
+
+        // Assert
+        // Stack Pointer caiu duas vezes (0xFF -> 0xFE -> 0xFD)
+        Assert.Equal(0xFD, cpu.GetStackPointer());
+
+        // Ambas as posições da pilha devem conter o mesmo valor processado
+        // Zero (0x02) | Fantasma (0x30) = 0x32
+        Assert.Equal(0x32, mem.Read(0x01FF)); // Primeiro push
+        Assert.Equal(0x32, mem.Read(0x01FE)); // Segundo push
+    }
+
+    #endregion
+
+    [Fact]
+    public void TestPha__BasicPush__ShouldStoreAccumulatorInStackAndDecrementSP()
+    {
+        // Arrange: PHA (Opcode 0x48) posicionado em $8000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x48;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Configura o Acumulador e inicializa o Stack Pointer no topo padrão (0xFF)
+        cpu.RegisterA = 0x5A;
+        cpu.SetStackPointer(0xFF);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // 1. O valor do Acumulador deve ter sido escrito em $01FF (0x0100 + 0xFF)
+        Assert.Equal(0x5A, mem.Read(0x01FF));
+
+        // 2. O Stack Pointer deve ter decrementado em exatamente 1 unidade (0xFF -> 0xFE)
+        Assert.Equal(0xFE, cpu.GetStackPointer());
+
+        // 3. O Acumulador original não pode ter sido limpo ou modificado
+        Assert.Equal(0x5A, cpu.RegisterA);
+
+        // 4. O PC avança exatamente 1 byte (modo Implied)
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestPha__ConsecutivePushes__ShouldStackCorrectlyInDescendingOrder()
+    {
+        // Arrange: Duas instruções PHA seguidas em $8000 e $8001
+        var program = new byte[0x10000];
+        program[0x8000] = 0x48;
+        program[0x8001] = 0x48;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Primeiro valor a ser empilhado
+        cpu.RegisterA = 0x11;
+
+        // Act 1: Executa a primeira PHA
+        cpu.Interpret(limit: 1);
+
+        // Modifica o Acumulador para o segundo empilhamento
+        cpu.RegisterA = 0x22;
+
+        // Act 2: Executa a segunda PHA
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFD, cpu.GetStackPointer()); // 0xFF -> 0xFE -> 0xFD
+        Assert.Equal(0x11, mem.Read(0x01FF));      // Primeiro Push fica em $01FF
+        Assert.Equal(0x22, mem.Read(0x01FE));      // Segundo Push fica em $01FE
+    }
+
+    [Fact]
+    public void TestPha__Isolation__ShouldNotModifyStatusFlags()
+    {
+        // Arrange: PHA com Acumulador igual a zero ou negativo (valores que costumam alterar flags)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x48;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0xFF);
+
+        // Injeta um valor com o bit 7 ativo (negativo se fosse avaliado)
+        cpu.RegisterA = 0x80;
+
+        // Força um estado de flags conhecido (N=0, Z=0, C=1)
+        cpu.SetStatusFlag(0b0000_0001);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Nenhuma flag de status pode mudar, mesmo o valor sendo "negativo"
+        Assert.Equal(0b0000_0001, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestPha__StackUnderflowWrap__ShouldWrapAroundPage1()
+    {
+        // Arrange: Força o Stack Pointer a estar no limite inferior (0x00)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x48;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetStackPointer(0x00);
+        cpu.RegisterA = 0xFF;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Deve gravar em $0100 (0x0100 + 0x00)
+        Assert.Equal(0xFF, mem.Read(0x0100));
+
+        // O Stack Pointer deve dar o wrap-around de 8 bits natural de 0x00 para 0xFF
+        Assert.Equal(0xFF, cpu.GetStackPointer());
+    }
+
+    #endregion
 }

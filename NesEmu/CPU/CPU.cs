@@ -379,6 +379,14 @@ public class CPU
         _instructions.Add(0x19, () => Ora(AddressingMode.AbsoluteY));
         _instructions.Add(0x01, () => Ora(AddressingMode.IndirectX));
         _instructions.Add(0x11, () => Ora(AddressingMode.IndirectY));
+
+
+        // PHA
+        _instructions.Add(0x48, () => Pha());
+
+
+        // PHP
+        _instructions.Add(0x08, () => Php());
     }
 
 
@@ -1167,6 +1175,29 @@ public class CPU
     }
 
 
+    /// <summary>
+    /// PHA instruction. It pushes the accumulator onto the stack.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Pha() { PushStack(RegisterA); }
+
+
+    /// <summary>
+    ///  PHP instruction. It pushes the status register onto the stack.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Php() { 
+        byte value = (byte) (_status | 0b0011_0000);
+        PushStack(value); 
+    }
+
+
+
+
     #endregion
 
     #region Addressing
@@ -1319,6 +1350,12 @@ public class CPU
         _nesMemory.Write((ushort)(StackPointer + 0x0100), hi);
         StackPointer--;
         _nesMemory.Write((ushort)(StackPointer + 0x0100), lo);
+        StackPointer--;
+    }
+
+    private void PushStack(byte value)
+    {
+        _nesMemory.Write((ushort)(StackPointer + 0x0100), value);
         StackPointer--;
     }
 

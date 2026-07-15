@@ -387,6 +387,10 @@ public class CPU
 
         // PHP
         _instructions.Add(0x08, () => Php());
+
+
+        // PLA
+        _instructions.Add(0x68, () => Pla());
     }
 
 
@@ -1031,7 +1035,7 @@ public class CPU
 
         UpdateZeroFlag(value);
         UpdateNegativeFlag(value);
-        
+
     }
 
     /// <summary>
@@ -1085,7 +1089,7 @@ public class CPU
 
         var addr = GetOperandAddress(mode);
 
-        ushort returnAddr = (ushort)(ProgramCounter -1);
+        ushort returnAddr = (ushort)(ProgramCounter - 1);
 
         PushStack(returnAddr);
         ProgramCounter = addr;
@@ -1150,7 +1154,8 @@ public class CPU
     /// <param name="mode"></param>
     /// <returns></returns>
     /// <exception cref="InvalidEnumArgumentException"></exception>
-    private void Ora(AddressingMode mode) { 
+    private void Ora(AddressingMode mode)
+    {
 
         var allowedModes = new List<AddressingMode>
         {
@@ -1190,12 +1195,24 @@ public class CPU
     /// <param name="mode"></param>
     /// <returns></returns>
     /// <exception cref="InvalidEnumArgumentException"></exception>
-    private void Php() { 
-        byte value = (byte) (_status | 0b0011_0000);
-        PushStack(value); 
+    private void Php()
+    {
+        byte value = (byte)(_status | 0b0011_0000);
+        PushStack(value);
     }
 
-
+    /// <summary>
+    /// PLA instruction. It pulls the accumulator from the stack.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Pla()
+    {
+        RegisterA = PopStack();
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
+    }
 
 
     #endregion
@@ -1346,7 +1363,7 @@ public class CPU
     {
         var hi = (byte)(value >> 8);
         var lo = (byte)(value & 0x00FF);
-        
+
         _nesMemory.Write((ushort)(StackPointer + 0x0100), hi);
         StackPointer--;
         _nesMemory.Write((ushort)(StackPointer + 0x0100), lo);
@@ -1357,6 +1374,13 @@ public class CPU
     {
         _nesMemory.Write((ushort)(StackPointer + 0x0100), value);
         StackPointer--;
+    }
+
+    private byte PopStack()
+    {
+        StackPointer++;
+        byte value = _nesMemory.Read((ushort)(StackPointer + 0x0100));
+        return value;
     }
 
     public void SetStackPointer(int v)

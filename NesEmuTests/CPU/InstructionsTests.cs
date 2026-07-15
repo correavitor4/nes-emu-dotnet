@@ -4035,4 +4035,146 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region PLA - Pull Accumulator Tests
+
+    [Fact]
+    public void TestPla__BasicPull__ShouldLoadValueFromStackAndIncrementSP()
+    {
+        // Arrange: PLA (Opcode 0x68) posicionado em $8000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x68;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Configura a pilha: coloca o valor 0x55 no endereço $01FF
+        // E aponta o Stack Pointer para 0xFE (indicando que $01FF é o topo ocupado)
+        mem.Write(0x01FF, 0x55);
+        cpu.SetStackPointer(0xFE);
+
+        // Garante que o acumulador comece com outro valor
+        cpu.RegisterA = 0x00;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // 1. O Acumulador deve ter recebido o valor da pilha
+        Assert.Equal(0x55, cpu.RegisterA);
+
+        // 2. O Stack Pointer deve ter sido incrementado (0xFE -> 0xFF)
+        Assert.Equal(0xFF, cpu.GetStackPointer());
+
+        // 3. O PC avança exatamente 1 byte (modo Implied)
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+
+        // 4. Flags: 0x55 não é zero nem negativo, então Z=0 e N=0
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0010); // Zero Flag = 0
+        Assert.Equal(0, status & 0b1000_0000); // Negative Flag = 0
+    }
+
+    [Fact]
+    public void TestPla__PullZero__ShouldSetZeroFlag()
+    {
+        // Arrange: Puxar um valor 0x00 da pilha deve ativar a flag Zero
+        var program = new byte[0x10000];
+        program[0x8000] = 0x68;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        mem.Write(0x01FF, 0x00);
+        cpu.SetStackPointer(0xFE);
+        cpu.RegisterA = 0xFF; // Valor inicial diferente
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Zero Flag deve ser 1
+        Assert.Equal(0, status & 0b1000_0000);           // Negative Flag deve ser 0
+    }
+
+    [Fact]
+    public void TestPla__PullNegative__ShouldSetNegativeFlag()
+    {
+        // Arrange: Puxar um valor com o bit 7 ativo (ex: 0x80) deve ativar a flag Negative
+        var program = new byte[0x10000];
+        program[0x8000] = 0x68;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        mem.Write(0x01FF, 0x80);
+        cpu.SetStackPointer(0xFE);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x80, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b0000_0010);           // Zero Flag deve ser 0
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Negative Flag deve ser 1
+    }
+
+    [Fact]
+    public void TestPla__StackOverflowWrap__ShouldWrapAroundPage1()
+    {
+        // Arrange: Se o Stack Pointer estiver em 0xFF, o próximo incremento (SP + 1)
+        // deve dar wrap-around de 8 bits para 0x00. Portanto, lê de $0100.
+        var program = new byte[0x10000];
+        program[0x8000] = 0x68;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        mem.Write(0x0100, 0x42); // Guarda no início físico da Página 1
+        cpu.SetStackPointer(0xFF);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x42, cpu.RegisterA);
+        Assert.Equal(0x00, cpu.GetStackPointer()); // 0xFF + 1 = 0x00 (Wrap de 8 bits)
+    }
+
+    [Fact]
+    public void TestPla__Isolation__ShouldKeepOtherRegistersIntact()
+    {
+        // Arrange: Garantir que X, Y e flags não relacionadas não mudem
+        var program = new byte[0x10000];
+        program[0x8000] = 0x68;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        mem.Write(0x01FF, 0x55);
+        cpu.SetStackPointer(0xFE);
+
+        cpu.RegisterX = 0x11;
+        cpu.RegisterY = 0x22;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x11, cpu.RegisterX);
+        Assert.Equal(0x22, cpu.RegisterY);
+    }
+
+    #endregion
+
 }

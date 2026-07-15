@@ -404,7 +404,7 @@ public class CPU
         _instructions.Add(0x36, () => Rol(AddressingMode.ZeroPageX));
         _instructions.Add(0x2E, () => Rol(AddressingMode.Absolute));
         _instructions.Add(0x3E, () => Rol(AddressingMode.AbsoluteX));
-    
+
 
         // ROR
         _instructions.Add(0x6A, () => Ror(AddressingMode.Accumulator));
@@ -412,6 +412,10 @@ public class CPU
         _instructions.Add(0x76, () => Ror(AddressingMode.ZeroPageX));
         _instructions.Add(0x6E, () => Ror(AddressingMode.Absolute));
         _instructions.Add(0x7E, () => Ror(AddressingMode.AbsoluteX));
+
+
+        // RTI
+        _instructions.Add(0x40, () => Rti());
     }
 
 
@@ -1364,6 +1368,30 @@ public class CPU
     }
 
 
+    /// <summary>
+    /// RTI instruction. It returns from an interrupt
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Rti()
+    {
+        // 1. Retira o Status (8 bits) e aplica a máscara para limpar os bits 4 e 5
+        // Usamos 0xCF (0b1100_1111) conforme o comportamento padrão da sua CPU
+        _status = (byte)(PopStack() & 0xCF);
+
+        // 2. Retira o PC Low (8 bits)
+        byte pcLo = PopStack();
+
+        // 3. Retira o PC High (8 bits)
+        byte pcHi = PopStack();
+
+        // 4. Reconstrói o Program Counter de 16 bits combinando as partes de forma correta
+        ProgramCounter = (ushort)((pcHi << 8) | pcLo);
+    }
+
+
+
     #endregion
 
     #region Addressing
@@ -1531,6 +1559,7 @@ public class CPU
         byte value = _nesMemory.Read((ushort)(StackPointer + 0x0100));
         return value;
     }
+
 
     public void SetStackPointer(int v)
     {

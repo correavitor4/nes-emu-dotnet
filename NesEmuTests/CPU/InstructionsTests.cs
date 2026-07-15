@@ -4806,4 +4806,109 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region RTI - Return From Interrupt Tests
+
+    [Fact]
+    public void TestRti__BasicReturn__ShouldRestoreStatusAndJumpToExactAddress()
+    {
+        // Arrange: RTI (Opcode 0x40) posicionado em $8000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x40;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Configura a Pilha simulando uma interrupção ocorrida de forma controlada.
+        // Endereço de retorno desejado: $C050 (PC High = 0xC0, PC Low = 0x50)
+        // Flags salvas na interrupção: 0b1000_0001 (Negative=1, Carry=1, demais zeradas)
+        //
+        // LIFO Pop Order:
+        // 1º Pop -> Status (SP inicial: 0xFC, após pop: 0xFD) -> lido de $01FD
+        // 2º Pop -> PC Low (SP após pop: 0xFE) -> lido de $01FE
+        // 3º Pop -> PC High (SP após pop: 0xFF) -> lido de $01FF
+
+        cpu.SetStackPointer(0xFC);
+        mem.Write(0x01FD, 0b1000_0001); // Status
+        mem.Write(0x01FE, 0x50);         // PC Low
+        mem.Write(0x01FF, 0xC0);         // PC High
+
+        // Inicializa o estado da CPU diferente para provar que a restauração ocorreu
+        cpu.SetStatusFlag(0x00);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // 1. O Program Counter deve ser exatamente o restaurado (sem incrementos bizarros)
+        Assert.Equal(0xC050, cpu.ProgramCounter);
+
+        // 2. O Stack Pointer deve ter retornado para o topo limpo (0xFF)
+        Assert.Equal(0xFF, cpu.GetStackPointer());
+
+        // 3. As flags devem ter sido restauradas (Considerando o comportamento da sua CPU de ignorar bit 5)
+        Assert.Equal(0x81, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestRti__ShouldIgnoreBits4And5FromStack()
+    {
+        // Arrange: RTI recuperando status com bits 4 e 5 ativos na pilha
+        var program = new byte[0x10000];
+        program[0x8000] = 0x40;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Coloca na pilha um status contendo bits 4 e 5 ativos (0b0011_0000) e demais zerados
+        cpu.SetStackPointer(0xFC);
+        mem.Write(0x01FD, 0b0011_0000); // Status na pilha
+        mem.Write(0x01FE, 0x00);         // PC Low ($1000)
+        mem.Write(0x01FF, 0x10);         // PC High
+
+        cpu.SetStatusFlag(0xFF); // Inicia com todas as flags ativas na CPU
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x1000, cpu.ProgramCounter);
+
+        // O valor do status deve ignorar o bit 4 (Break) e o bit 5 (Unused) conforme comportamento do seu núcleo.
+        // Como os demais bits restaurados eram 0, o status restaurado na CPU deve ser 0.
+        Assert.Equal(0, cpu.GetRegisterStatus());
+    }
+
+    [Fact]
+    public void TestRti__StackUnderflowWrapAround__ShouldWrapCorrectly()
+    {
+        // Arrange: Caso extremo de wrap-around físico da pilha de 8 bits durante o pop
+        var program = new byte[0x10000];
+        program[0x8000] = 0x40;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // SP configurado em 0xFE.
+        // Pop 1 (Status): incrementa SP para 0xFF -> lê de $01FF
+        // Pop 2 (PC Low): incrementa SP de 0xFF para 0x00 (Wrap-around!) -> lê de $0100
+        // Pop 3 (PC High): incrementa SP de 0x00 para 0x01 -> lê de $0101
+        cpu.SetStackPointer(0xFE);
+        mem.Write(0x01FF, 0b0100_0010); // Status (Overflow=1, Zero=1) -> 0x42
+        mem.Write(0x0100, 0x22);         // PC Low
+        mem.Write(0x0101, 0x99);         // PC High
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x9922, cpu.ProgramCounter);
+        Assert.Equal(0x01, cpu.GetStackPointer());
+        Assert.Equal(0x42, cpu.GetRegisterStatus());
+    }
+
+    #endregion
 }

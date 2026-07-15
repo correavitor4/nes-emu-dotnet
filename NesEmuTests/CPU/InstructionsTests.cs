@@ -4520,4 +4520,290 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region ROR - Comprehensive Rotation Tests
+
+    [Fact]
+    public void TestRor__Accumulator__Carry0_Bit0Is0__ShouldShiftRightAndKeepCarry0()
+    {
+        // Arrange: ROR A (Opcode 0x6A)
+        // Inicial: A = 0x55 (0101 0101), Carry = 0
+        // Esperado: A = 0x2A (0010 1010), Carry = 1 (bit 0 original era 1), Z=0, N=0 (bit 7 vira o Carry antigo = 0)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6A;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x55;
+        cpu.SetCarryFlag(false);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x2A, cpu.RegisterA);
+        Assert.Equal(0x8001, cpu.ProgramCounter); // Modo acumulador avança 1 byte
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry virou 1 (bit 0 antigo)
+        Assert.Equal(0, status & (byte)StatusFlag.Zero);
+        Assert.Equal(0, status & (byte)StatusFlag.Negative); // Bit 7 é 0
+    }
+
+    [Fact]
+    public void TestRor__Accumulator__Carry0_Bit0Is0_EvenValue__ShouldShiftRightAndGetCarry0()
+    {
+        // Arrange: ROR A (Opcode 0x6A)
+        // Inicial: A = 0x02 (0000 0010), Carry = 0
+        // Esperado: A = 0x01 (0000 0001), Carry = 0, Z=0, N=0
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6A;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x02;
+        cpu.SetCarryFlag(false);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x01, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & (byte)StatusFlag.Carry);
+        Assert.Equal(0, status & (byte)StatusFlag.Zero);
+        Assert.Equal(0, status & (byte)StatusFlag.Negative);
+    }
+
+    [Fact]
+    public void TestRor__Accumulator__Carry1_Bit0Is0__ShouldPullCarryIntoBit7()
+    {
+        // Arrange: ROR A (Opcode 0x6A)
+        // Inicial: A = 0x02 (0000 0010), Carry = 1
+        // Esperado: A = 0x81 (1000 0001), Carry = 0, Z=0, N=1 (bit 7 vira o Carry antigo = 1)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6A;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x02;
+        cpu.SetCarryFlag(true);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x81, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & (byte)StatusFlag.Carry);
+        Assert.Equal(0, status & (byte)StatusFlag.Zero);
+        Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative); // Bit 7 ativo
+    }
+
+    [Fact]
+    public void TestRor__Accumulator__Carry1_Bit0Is1__ShouldExchangeBits()
+    {
+        // Arrange: ROR A (Opcode 0x6A)
+        // Inicial: A = 0x01 (0000 0001), Carry = 1
+        // Esperado: A = 0x80 (1000 0000), Carry = 1, Z=0, N=1
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6A;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x01;
+        cpu.SetCarryFlag(true);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x80, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry);
+        Assert.Equal(0, status & (byte)StatusFlag.Zero);
+        Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative);
+    }
+
+    [Fact]
+    public void TestRor__Accumulator__ResultIsZero__ShouldSetZeroFlag()
+    {
+        // Arrange: ROR A (Opcode 0x6A)
+        // Inicial: A = 0x00 (0000 0000), Carry = 0
+        // Esperado: A = 0x00, Carry = 0, Z=1, N=0
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6A;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x00;
+        cpu.SetCarryFlag(false);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterA);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & (byte)StatusFlag.Carry);
+        Assert.Equal((byte)StatusFlag.Zero, status & (byte)StatusFlag.Zero);
+        Assert.Equal(0, status & (byte)StatusFlag.Negative);
+    }
+
+    [Fact]
+    public void TestRor__ZeroPage__ShouldModifyMemoryDirectly()
+    {
+        // Arrange: ROR $10 (Opcode 0x66)
+        // Inicial: Memoria[$10] = 0x01, Carry = 1
+        // Esperado: Memoria[$10] = 0x80 (1000 0000), Carry = 1, Z=0, N=1
+        var program = new byte[0x10000];
+        program[0x8000] = 0x66;
+        program[0x8001] = 0x10;
+        program[0x0010] = 0x01;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetCarryFlag(true);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x80, mem.Read(0x0010));
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Zero Page avança 2 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry);
+        Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative);
+    }
+
+    [Fact]
+    public void TestRor__ZeroPageX__ShouldHandleWrappingAndIndexing()
+    {
+        // Arrange: ROR $FF, X (Opcode 0x76) -> X=5 -> Endereço ZP indexado = 0x04 (wrap-around)
+        // Inicial: Memoria[$04] = 0x02, Carry = 0
+        // Esperado: Memoria[$04] = 0x01, Carry = 0, Z=0, N=0
+        var program = new byte[0x10000];
+        program[0x8000] = 0x76;
+        program[0x8001] = 0xFF;
+        program[0x0004] = 0x02;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x05;
+        cpu.SetCarryFlag(false);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x01, mem.Read(0x0004));
+        Assert.Equal(0x8002, cpu.ProgramCounter);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & (byte)StatusFlag.Carry);
+    }
+
+    [Fact]
+    public void TestRor__Absolute__ShouldRotateAndAdvance3Bytes()
+    {
+        // Arrange: ROR $2000 (Opcode 0x6E)
+        // Inicial: Memoria[$2000] = 0xFF (1111 1111), Carry = 0
+        // Esperado: Memoria[$2000] = 0x7F (0111 1111), Carry = 1, Z=0, N=0
+        var program = new byte[0x10000];
+        program[0x8000] = 0x6E;
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x20;
+        program[0x2000] = 0xFF;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.SetCarryFlag(false);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x7F, mem.Read(0x2000));
+        Assert.Equal(0x8003, cpu.ProgramCounter); // Absolute avança 3 bytes
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry);
+        Assert.Equal(0, status & (byte)StatusFlag.Negative);
+    }
+
+    [Fact]
+    public void TestRor__AbsoluteX__ShouldIndexCorrectly()
+    {
+        // Arrange: ROR $1000, X (Opcode 0x7E) -> X=2 -> Endereço $1002
+        // Inicial: Memoria[$1002] = 0x81 (1000 0001), Carry = 1
+        // Esperado: Memoria[$1002] = 0xC0 (1100 0000), Carry = 1, Z=0, N=1
+        var program = new byte[0x10000];
+        program[0x8000] = 0x7E;
+        program[0x8001] = 0x00;
+        program[0x8002] = 0x10;
+        program[0x1002] = 0x81;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+        cpu.RegisterX = 0x02;
+        cpu.SetCarryFlag(true);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xC0, mem.Read(0x1002));
+        Assert.Equal(0x8003, cpu.ProgramCounter);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry);
+        Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative);
+    }
+
+    [Fact]
+    public void TestRor__Isolation__ShouldNotModifyOtherRegisters()
+    {
+        // Arrange: Garante que registradores de trabalho continuem intactos ao rodar ROR na memoria
+        var program = new byte[0x10000];
+        program[0x8000] = 0x66;
+        program[0x8001] = 0x10;
+        program[0x0010] = 0xAA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x11;
+        cpu.RegisterX = 0x22;
+        cpu.RegisterY = 0x33;
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x11, cpu.RegisterA);
+        Assert.Equal(0x22, cpu.RegisterX);
+        Assert.Equal(0x33, cpu.RegisterY);
+    }
+
+    #endregion
 }

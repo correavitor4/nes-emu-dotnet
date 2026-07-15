@@ -404,6 +404,14 @@ public class CPU
         _instructions.Add(0x36, () => Rol(AddressingMode.ZeroPageX));
         _instructions.Add(0x2E, () => Rol(AddressingMode.Absolute));
         _instructions.Add(0x3E, () => Rol(AddressingMode.AbsoluteX));
+    
+
+        // ROR
+        _instructions.Add(0x6A, () => Ror(AddressingMode.Accumulator));
+        _instructions.Add(0x66, () => Ror(AddressingMode.ZeroPage));
+        _instructions.Add(0x76, () => Ror(AddressingMode.ZeroPageX));
+        _instructions.Add(0x6E, () => Ror(AddressingMode.Absolute));
+        _instructions.Add(0x7E, () => Ror(AddressingMode.AbsoluteX));
     }
 
 
@@ -1287,6 +1295,64 @@ public class CPU
 
         // 3. Desloca para a esquerda e insere o Carry antigo no Bit 0
         value = (byte)((value << 1) | oldCarry);
+
+        // Salva na memória
+        _nesMemory.Write(opAddr, value);
+
+        // 4. Atualiza as flags
+        UpdateZeroFlag(value);
+        UpdateNegativeFlag(value);
+        SetCarryFlag(memNewCarry == 1);
+    }
+
+
+    /// <summary>
+    /// ROR instruction. It shifts a bit from the right of the accumulator to the carry flag.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Ror(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+    {
+        AddressingMode.Accumulator,
+        AddressingMode.ZeroPage,
+        AddressingMode.ZeroPageX,
+        AddressingMode.Absolute,
+        AddressingMode.AbsoluteX
+    };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        // 1. Guarda o valor atual do Carry (1 ou 0) antes de commencar a alterar os valores
+        byte oldCarry = (byte)((GetRegisterStatus() & (byte)StatusFlag.Carry) != 0 ? 1 : 0);
+
+        if (mode == AddressingMode.Accumulator)
+        {
+            // 2. O novo Carry é o Bit 0 do Acumulador antes de rotacionar
+            byte newCarry = (byte)(RegisterA & 1);
+
+            // 3. Desloca para a direita e insere o Carry antigo no Bit 7
+            RegisterA = (byte)((RegisterA >> 1) | (oldCarry << 7));
+
+            // 4. Atualiza as flags
+            UpdateZeroFlag(RegisterA);
+            UpdateNegativeFlag(RegisterA);
+            SetCarryFlag(newCarry == 1);
+            return;
+        }
+
+        // Modo Memória
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+
+        // 2. O novo Carry é o Bit 0 do valor antes de rotacionar
+        byte memNewCarry = (byte)(value & 1);
+
+        // 3. Desloca para a direita e insere o Carry antigo no Bit 7
+        value = (byte)((value >> 1) | (oldCarry << 7));
 
         // Salva na memória
         _nesMemory.Write(opAddr, value);

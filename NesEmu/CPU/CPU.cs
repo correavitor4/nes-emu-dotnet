@@ -391,6 +391,10 @@ public class CPU
 
         // PLA
         _instructions.Add(0x68, () => Pla());
+
+
+        // PLP
+        _instructions.Add(0x28, () => Plp());
     }
 
 
@@ -1212,6 +1216,17 @@ public class CPU
         RegisterA = PopStack();
         UpdateZeroFlag(RegisterA);
         UpdateNegativeFlag(RegisterA);
+    }
+
+    /// <summary>
+    /// PLP instruction. It pulls the status register from the stack.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Plp() { 
+        var temp = PopStack(); 
+        _status = (byte)(temp & 0b1100_1111);
     }
 
 

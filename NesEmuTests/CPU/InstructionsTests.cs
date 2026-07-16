@@ -4911,4 +4911,97 @@ public class InstructionsTests
     }
 
     #endregion
+
+    #region RTS - Return From Subroutine Tests
+
+    [Fact]
+    public void TestRts__BasicReturn__ShouldPullAddressAndIncrementBy1()
+    {
+        // Arrange: RTS (Opcode 0x60) posicionado em $8000
+        var program = new byte[0x10000];
+        program[0x8000] = 0x60;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Configura a pilha simulando um retorno vindo de JSR.
+        // Queremos que a CPU volte para $C050.
+        // Como a JSR salva PC - 1, o que está empilhado é $C04F.
+        cpu.SetStackPointer(0xFD);
+        mem.Write(0x01FE, 0x4F); // PC Low ($4F) será lido no primeiro PopStack()
+        mem.Write(0x01FF, 0xC0); // PC High ($C0) será lido no segundo PopStack()
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // O endereço extraído é $C04F. RTS soma 1, resultando em $C050.
+        Assert.Equal(0xC050, cpu.ProgramCounter);
+
+        // O Stack Pointer deve ter retornado para o estado vazio inicial (0xFF)
+        Assert.Equal(0xFF, cpu.GetStackPointer());
+    }
+
+    [Fact]
+    public void TestRts__PageBoundaryReturn__ShouldHandleCarryCorrectly()
+    {
+        // Arrange: Validar se a matemática de +1 lida bem com mudança de página
+        var program = new byte[0x10000];
+        program[0x8000] = 0x60;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // A JSR salvou $01FF. Queremos retornar para $0200.
+        cpu.SetStackPointer(0xFD);
+        mem.Write(0x01FE, 0xFF); // PC Low
+        mem.Write(0x01FF, 0x01); // PC High
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // $01FF + 1 = $0200
+        Assert.Equal(0x0200, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestRts__Isolation__ShouldNotModifyAnyFlagsOrRegisters()
+    {
+        // Arrange: RTS não pode alterar acumulador, X, Y ou as flags de status
+        var program = new byte[0x10000];
+        program[0x8000] = 0x60;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // A JSR salvou $404F na pilha. Retorno será em $4050.
+        cpu.SetStackPointer(0xFD);
+        mem.Write(0x01FE, 0x4F); // PC Low
+        mem.Write(0x01FF, 0x40); // PC High
+
+        // Configura estado sujo para garantir que a instrução RTS não altera o resto da CPU
+        cpu.RegisterA = 0x55;
+        cpu.RegisterX = 0xAA;
+        cpu.RegisterY = 0xCC;
+        cpu.SetStatusFlag(0b1111_1111); // Todas as flags ativas
+        byte statusOriginal = cpu.GetRegisterStatus();
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x4050, cpu.ProgramCounter); // PC alterado perfeitamente
+
+        // Restante da CPU intacto
+        Assert.Equal(0x55, cpu.RegisterA);
+        Assert.Equal(0xAA, cpu.RegisterX);
+        Assert.Equal(0xCC, cpu.RegisterY);
+        Assert.Equal(statusOriginal, cpu.GetRegisterStatus());
+    }
+
+    #endregion
 }

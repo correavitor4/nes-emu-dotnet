@@ -416,6 +416,10 @@ public class CPU
 
         // RTI
         _instructions.Add(0x40, () => Rti());
+
+
+        // RTS
+        _instructions.Add(0x60, () => Rts());
     }
 
 
@@ -1390,6 +1394,22 @@ public class CPU
         ProgramCounter = (ushort)((pcHi << 8) | pcLo);
     }
 
+
+    /// <summary>
+    /// RTS instruction. Return from Subroutine.
+    /// Pulls the program counter (minus one) from the stack and adds 1.
+    /// </summary>
+    private void Rts()
+    {
+        // 1. O primeiro byte a sair da pilha é sempre a parte baixa (Low)
+        byte pcLo = PopStack();
+
+        // 2. O segundo byte é a parte alta (High)
+        byte pcHi = PopStack();
+
+        // 3. Junta os dois bytes e obrigatoriamente soma +1 (para compensar o -1 do JSR)
+        ProgramCounter = (ushort)(((pcHi << 8) | pcLo) + 1);
+    }
 
 
     #endregion

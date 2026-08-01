@@ -5612,4 +5612,100 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region TSX - Transfer Stack Pointer to X Tests
+
+    [Fact]
+    public void TestTsx__TransferPositiveValue__ShouldUpdateXAndNotModifySP()
+    {
+        // Arrange: TSX (Opcode 0xBA)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xBA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Valor positivo (bit 7 é 0)
+        cpu.SetStackPointer(0x55);
+        cpu.RegisterX = 0x00; // Começa diferente
+
+        // Suja as flags Zero e Negative
+        cpu.SetStatusFlag(0b1000_0010);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x55, cpu.RegisterX); // X deve receber o valor do SP
+        Assert.Equal(0x55, cpu.GetStackPointer()); // SP DEVE continuar o mesmo!
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b1000_0000); // Flag N deve ser 0 (desligada)
+        Assert.Equal(0, status & 0b0000_0010); // Flag Z deve ser 0 (desligada)
+    }
+
+    [Fact]
+    public void TestTsx__TransferZero__ShouldSetZeroFlag()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xBA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Testando transferência de Zero
+        cpu.SetStackPointer(0x00);
+        cpu.RegisterX = 0xFF;
+
+        // Limpa a flag Zero e liga a Negative
+        cpu.SetStatusFlag(0b1000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterX);
+        Assert.Equal(0x00, cpu.GetStackPointer()); // SP intacto
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Flag Z DEVE ser 1
+        Assert.Equal(0, status & 0b1000_0000); // Flag N DEVE ser 0
+    }
+
+    [Fact]
+    public void TestTsx__TransferNegativeValue__ShouldSetNegativeFlag()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xBA;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // O Stack Pointer no NES geralmente inicializa em 0xFD ou 0xFF (negativos em sbyte)
+        cpu.SetStackPointer(0xFD);
+        cpu.RegisterX = 0x00;
+
+        // Liga a flag Zero e limpa a Negative
+        cpu.SetStatusFlag(0b0000_0010);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xFD, cpu.RegisterX);
+        Assert.Equal(0xFD, cpu.GetStackPointer()); // SP intacto
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Flag N DEVE ser 1
+        Assert.Equal(0, status & 0b0000_0010); // Flag Z DEVE ser 0
+    }
+
+    #endregion
+
 }

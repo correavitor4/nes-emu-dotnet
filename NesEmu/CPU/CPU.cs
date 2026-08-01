@@ -486,6 +486,10 @@ public class CPU
         // TAY
         _instructions.Add(0xA8, () => Tay());
 
+
+        // TSX
+        _instructions.Add(0xBA, () => Tsx());
+
     }
 
 
@@ -1639,6 +1643,19 @@ public class CPU
     }
 
 
+    /// <summary>
+    /// TSX instruction. Transfer Stack Pointer to X
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Tsx()
+    {
+
+        RegisterX = StackPointer;
+        UpdateZeroFlag(RegisterX);
+        UpdateNegativeFlag(RegisterX);
+    }
 
     #endregion
 
@@ -1806,6 +1823,11 @@ public class CPU
         StackPointer++;
         byte value = _nesMemory.Read((ushort)(StackPointer + 0x0100));
         return value;
+    }
+
+    private byte ReadStack()
+    {
+        return _nesMemory.Read((ushort)(StackPointer + 0x0100));
     }
 
 

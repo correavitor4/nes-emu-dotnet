@@ -490,6 +490,10 @@ public class CPU
         // TSX
         _instructions.Add(0xBA, () => Tsx());
 
+
+        // TXA
+        _instructions.Add(0x8A, () => Txa());
+
     }
 
 
@@ -1656,6 +1660,21 @@ public class CPU
         UpdateZeroFlag(RegisterX);
         UpdateNegativeFlag(RegisterX);
     }
+
+
+    /// <summary>
+    /// TXA instruction. Transfer X to Accumulator
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Txa()
+    {
+        RegisterA = RegisterX;
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
+    }
+
 
     #endregion
 

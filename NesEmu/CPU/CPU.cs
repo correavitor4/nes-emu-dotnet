@@ -494,6 +494,10 @@ public class CPU
         // TXA
         _instructions.Add(0x8A, () => Txa());
 
+
+        // TXS
+        _instructions.Add(0x9A, () => Txs());
+
     }
 
 
@@ -1675,6 +1679,13 @@ public class CPU
         UpdateNegativeFlag(RegisterA);
     }
 
+    /// <summary>
+    /// TXS instruction. Transfer X to Stack Pointer
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Txs() { StackPointer = RegisterX; }
 
     #endregion
 

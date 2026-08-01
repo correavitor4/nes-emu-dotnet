@@ -4916,7 +4916,7 @@ public class InstructionsTests
 
 
 
-    
+
 
     [Fact]
     public void TestRts__BasicReturn__ShouldPullAddressAndIncrementBy1()
@@ -5013,144 +5013,228 @@ public class InstructionsTests
 
     #region SBC - Subtract With Carry Tests
 
-[Fact]
-public void TestSbc__BasicSubtraction_NoBorrow__ShouldSubtractCorrectly()
-{
-    // Arrange: SBC Immediate (Opcode 0xE9)
-    var program = new byte[0x10000];
-    program[0x8000] = 0xE9; 
-    program[0x8001] = 0x03; // Subtrai 3
+    [Fact]
+    public void TestSbc__BasicSubtraction_NoBorrow__ShouldSubtractCorrectly()
+    {
+        // Arrange: SBC Immediate (Opcode 0xE9)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE9;
+        program[0x8001] = 0x03; // Subtrai 3
 
-    var mem = NesMemory.FromBytesArray(program);
-    var cpu = new NesEmu.CPU.CPU(mem);
-    cpu.ProgramCounter = 0x8000;
-    
-    cpu.RegisterA = 0x05; // 5 - 3 = 2
-    cpu.SetCarryFlag(true); // Carry 1 significa que NÃO há empréstimo pendente
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
 
-    // Act
-    cpu.Interpret(limit: 1);
+        cpu.RegisterA = 0x05; // 5 - 3 = 2
+        cpu.SetCarryFlag(true); // Carry 1 significa que NÃO há empréstimo pendente
 
-    // Assert
-    Assert.Equal(0x02, cpu.RegisterA);
-    Assert.Equal(0x8002, cpu.ProgramCounter); // Immediate avança 2 bytes
+        // Act
+        cpu.Interpret(limit: 1);
 
-    var status = cpu.GetRegisterStatus();
-    Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry DEVE continuar 1 (não precisou de borrow)
-    Assert.Equal(0, status & (byte)StatusFlag.Zero);
-    Assert.Equal(0, status & (byte)StatusFlag.Negative);
-}
+        // Assert
+        Assert.Equal(0x02, cpu.RegisterA);
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Immediate avança 2 bytes
 
-[Fact]
-public void TestSbc__WithBorrow__ShouldSubtractExtraOne()
-{
-    // Arrange: SBC Immediate
-    var program = new byte[0x10000];
-    program[0x8000] = 0xE9; 
-    program[0x8001] = 0x03; // Subtrai 3
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry DEVE continuar 1 (não precisou de borrow)
+        Assert.Equal(0, status & (byte)StatusFlag.Zero);
+        Assert.Equal(0, status & (byte)StatusFlag.Negative);
+    }
 
-    var mem = NesMemory.FromBytesArray(program);
-    var cpu = new NesEmu.CPU.CPU(mem);
-    cpu.ProgramCounter = 0x8000;
-    
-    cpu.RegisterA = 0x05; 
-    cpu.SetCarryFlag(false); // Carry 0 significa Borrow (empréstimo). Subtrai 1 extra.
-                             // 5 - 3 - 1 = 1
+    [Fact]
+    public void TestSbc__WithBorrow__ShouldSubtractExtraOne()
+    {
+        // Arrange: SBC Immediate
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE9;
+        program[0x8001] = 0x03; // Subtrai 3
 
-    // Act
-    cpu.Interpret(limit: 1);
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
 
-    // Assert
-    Assert.Equal(0x01, cpu.RegisterA);
-    
-    var status = cpu.GetRegisterStatus();
-    Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry vira 1 (operação não gerou novo borrow)
-}
+        cpu.RegisterA = 0x05;
+        cpu.SetCarryFlag(false); // Carry 0 significa Borrow (empréstimo). Subtrai 1 extra.
+                                 // 5 - 3 - 1 = 1
 
-[Fact]
-public void TestSbc__ResultNegative_RequiresBorrow__ShouldClearCarry()
-{
-    // Arrange: SBC Immediate
-    var program = new byte[0x10000];
-    program[0x8000] = 0xE9; 
-    program[0x8001] = 0x05; // Subtrai 5
+        // Act
+        cpu.Interpret(limit: 1);
 
-    var mem = NesMemory.FromBytesArray(program);
-    var cpu = new NesEmu.CPU.CPU(mem);
-    cpu.ProgramCounter = 0x8000;
-    
-    cpu.RegisterA = 0x03; 
-    cpu.SetCarryFlag(true); 
-    // Operação: 3 - 5 = -2. Em byte unsigned isso é 0xFE (254).
-    // Como precisou "pegar emprestado" além de 0, o Carry cai pra 0.
+        // Assert
+        Assert.Equal(0x01, cpu.RegisterA);
 
-    // Act
-    cpu.Interpret(limit: 1);
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry vira 1 (operação não gerou novo borrow)
+    }
 
-    // Assert
-    Assert.Equal(0xFE, cpu.RegisterA); // 254 (Representação de -2 em complemento de 2)
-    
-    var status = cpu.GetRegisterStatus();
-    Assert.Equal(0, status & (byte)StatusFlag.Carry); // C=0 indicando Borrow
-    Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative); // Resultado negativo
-}
+    [Fact]
+    public void TestSbc__ResultNegative_RequiresBorrow__ShouldClearCarry()
+    {
+        // Arrange: SBC Immediate
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE9;
+        program[0x8001] = 0x05; // Subtrai 5
 
-[Fact]
-public void TestSbc__SignedOverflow_PositiveMinusNegative__ShouldSetOverflowFlag()
-{
-    // Arrange: SBC Immediate
-    var program = new byte[0x10000];
-    program[0x8000] = 0xE9; 
-    program[0x8001] = 0xB0; // 0xB0 = -80 em signed
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
 
-    var mem = NesMemory.FromBytesArray(program);
-    var cpu = new NesEmu.CPU.CPU(mem);
-    cpu.ProgramCounter = 0x8000;
-    
-    cpu.RegisterA = 0x50; // 0x50 = 80 em signed
-    cpu.SetCarryFlag(true); 
-    // Operação: 80 - (-80) = 160. 
-    // 160 não cabe no limite de +127 do signed byte. Ocorre Overflow! (O bit 7 vai ligar)
+        cpu.RegisterA = 0x03;
+        cpu.SetCarryFlag(true);
+        // Operação: 3 - 5 = -2. Em byte unsigned isso é 0xFE (254).
+        // Como precisou "pegar emprestado" além de 0, o Carry cai pra 0.
 
-    // Act
-    cpu.Interpret(limit: 1);
+        // Act
+        cpu.Interpret(limit: 1);
 
-    // Assert
-    Assert.Equal(0xA0, cpu.RegisterA); // 160 em decimal
-    
-    var status = cpu.GetRegisterStatus();
-    // A flag de Overflow DEVE ligar (Bit 6 = 0x40)
-    Assert.Equal(0b0100_0000, status & 0b0100_0000); 
-    Assert.Equal(0, status & (byte)StatusFlag.Carry); // Operação passa do limite unsigned, Carry = 0
-}
+        // Assert
+        Assert.Equal(0xFE, cpu.RegisterA); // 254 (Representação de -2 em complemento de 2)
 
-[Fact]
-public void TestSbc__SignedOverflow_NegativeMinusPositive__ShouldSetOverflowFlag()
-{
-    // Arrange: SBC Immediate
-    var program = new byte[0x10000];
-    program[0x8000] = 0xE9; 
-    program[0x8001] = 0x01; // 1
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & (byte)StatusFlag.Carry); // C=0 indicando Borrow
+        Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative); // Resultado negativo
+    }
 
-    var mem = NesMemory.FromBytesArray(program);
-    var cpu = new NesEmu.CPU.CPU(mem);
-    cpu.ProgramCounter = 0x8000;
-    
-    cpu.RegisterA = 0x80; // 0x80 = -128
-    cpu.SetCarryFlag(true); 
-    // Operação: -128 - 1 = -129. 
-    // -129 não cabe no limite de -128 do signed byte. Ocorre Overflow! (O bit 7 vai desligar, dando 0x7F)
+    [Fact]
+    public void TestSbc__SignedOverflow_PositiveMinusNegative__ShouldSetOverflowFlag()
+    {
+        // Arrange: SBC Immediate
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE9;
+        program[0x8001] = 0xB0; // 0xB0 = -80 em signed
 
-    // Act
-    cpu.Interpret(limit: 1);
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
 
-    // Assert
-    Assert.Equal(0x7F, cpu.RegisterA); // +127 (estourou o limite)
-    
-    var status = cpu.GetRegisterStatus();
-    Assert.Equal(0b0100_0000, status & 0b0100_0000); // Overflow ligado
-    Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry=1
-}
+        cpu.RegisterA = 0x50; // 0x50 = 80 em signed
+        cpu.SetCarryFlag(true);
+        // Operação: 80 - (-80) = 160. 
+        // 160 não cabe no limite de +127 do signed byte. Ocorre Overflow! (O bit 7 vai ligar)
 
-#endregion
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xA0, cpu.RegisterA); // 160 em decimal
+
+        var status = cpu.GetRegisterStatus();
+        // A flag de Overflow DEVE ligar (Bit 6 = 0x40)
+        Assert.Equal(0b0100_0000, status & 0b0100_0000);
+        Assert.Equal(0, status & (byte)StatusFlag.Carry); // Operação passa do limite unsigned, Carry = 0
+    }
+
+    [Fact]
+    public void TestSbc__SignedOverflow_NegativeMinusPositive__ShouldSetOverflowFlag()
+    {
+        // Arrange: SBC Immediate
+        var program = new byte[0x10000];
+        program[0x8000] = 0xE9;
+        program[0x8001] = 0x01; // 1
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x80; // 0x80 = -128
+        cpu.SetCarryFlag(true);
+        // Operação: -128 - 1 = -129. 
+        // -129 não cabe no limite de -128 do signed byte. Ocorre Overflow! (O bit 7 vai desligar, dando 0x7F)
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x7F, cpu.RegisterA); // +127 (estourou o limite)
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0100_0000, status & 0b0100_0000); // Overflow ligado
+        Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry=1
+    }
+
+    #endregion
+
+    #region SEC - Set Carry Flag Tests
+
+    [Fact]
+    public void TestSec__WhenCarryIsClear__ShouldSetCarryFlag()
+    {
+        // Arrange: SEC (Opcode 0x38)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x38;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Garante que a flag de Carry comece como 0
+        cpu.SetCarryFlag(false);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Bit 0 (Carry) DEVE estar 1
+        Assert.Equal(0x8001, cpu.ProgramCounter); // PC avança 1 byte (Tamanho da instrução)
+    }
+
+    [Fact]
+    public void TestSec__WhenCarryIsAlreadySet__ShouldKeepCarryFlagSet()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0x38;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Liga a flag de Carry ANTES da instrução rodar
+        cpu.SetCarryFlag(true);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0001, status & 0b0000_0001); // Bit 0 (Carry) DEVE continuar 1
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestSec__Isolation__ShouldNotModifyOtherFlagsOrRegisters()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0x38;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Configura os registradores com valores aleatórios
+        cpu.RegisterA = 0x12;
+        cpu.RegisterX = 0x34;
+        cpu.RegisterY = 0x56;
+
+        // Configura o Status com todas as flags LIGADAS, EXCETO o Carry (Bit 0)
+        // 0b1111_1110 = 0xFE
+        cpu.SetStatusFlag(0b1111_1110);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        // Garante que nenhum registrador foi tocado
+        Assert.Equal(0x12, cpu.RegisterA);
+        Assert.Equal(0x34, cpu.RegisterX);
+        Assert.Equal(0x56, cpu.RegisterY);
+
+        // O status anterior era 0b1111_1110. A SEC liga o bit 0.
+        // Logo, o novo status exato DEVE ser 0b1111_1111 (0xFF).
+        Assert.Equal(0b1111_1111, cpu.GetRegisterStatus());
+    }
+
+    #endregion
 }

@@ -431,6 +431,11 @@ public class CPU
         _instructions.Add(0xF9, () => Sbc(AddressingMode.AbsoluteY));
         _instructions.Add(0xE1, () => Sbc(AddressingMode.IndirectX));
         _instructions.Add(0xF1, () => Sbc(AddressingMode.IndirectY));
+
+
+        // SEC
+        _instructions.Add(0x38, () => Sec());
+    
     }
 
 
@@ -1470,6 +1475,14 @@ public class CPU
         RegisterA = (byte)temp;
     }
 
+
+    /// <summary>
+    /// SEC instruction. Set Carry Flag
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Sec() { SetCarryFlag(true); }
 
     #endregion
 

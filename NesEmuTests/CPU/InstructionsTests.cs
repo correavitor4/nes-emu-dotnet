@@ -4912,7 +4912,11 @@ public class InstructionsTests
 
     #endregion
 
-    #region RTS - Return From Subroutine Tests
+    #region RTS - Return From Subroutine Tests]
+
+
+
+    
 
     [Fact]
     public void TestRts__BasicReturn__ShouldPullAddressAndIncrementBy1()
@@ -5004,4 +5008,149 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+
+    #region SBC - Subtract With Carry Tests
+
+[Fact]
+public void TestSbc__BasicSubtraction_NoBorrow__ShouldSubtractCorrectly()
+{
+    // Arrange: SBC Immediate (Opcode 0xE9)
+    var program = new byte[0x10000];
+    program[0x8000] = 0xE9; 
+    program[0x8001] = 0x03; // Subtrai 3
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.ProgramCounter = 0x8000;
+    
+    cpu.RegisterA = 0x05; // 5 - 3 = 2
+    cpu.SetCarryFlag(true); // Carry 1 significa que NÃO há empréstimo pendente
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    Assert.Equal(0x02, cpu.RegisterA);
+    Assert.Equal(0x8002, cpu.ProgramCounter); // Immediate avança 2 bytes
+
+    var status = cpu.GetRegisterStatus();
+    Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry DEVE continuar 1 (não precisou de borrow)
+    Assert.Equal(0, status & (byte)StatusFlag.Zero);
+    Assert.Equal(0, status & (byte)StatusFlag.Negative);
+}
+
+[Fact]
+public void TestSbc__WithBorrow__ShouldSubtractExtraOne()
+{
+    // Arrange: SBC Immediate
+    var program = new byte[0x10000];
+    program[0x8000] = 0xE9; 
+    program[0x8001] = 0x03; // Subtrai 3
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.ProgramCounter = 0x8000;
+    
+    cpu.RegisterA = 0x05; 
+    cpu.SetCarryFlag(false); // Carry 0 significa Borrow (empréstimo). Subtrai 1 extra.
+                             // 5 - 3 - 1 = 1
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    Assert.Equal(0x01, cpu.RegisterA);
+    
+    var status = cpu.GetRegisterStatus();
+    Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry vira 1 (operação não gerou novo borrow)
+}
+
+[Fact]
+public void TestSbc__ResultNegative_RequiresBorrow__ShouldClearCarry()
+{
+    // Arrange: SBC Immediate
+    var program = new byte[0x10000];
+    program[0x8000] = 0xE9; 
+    program[0x8001] = 0x05; // Subtrai 5
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.ProgramCounter = 0x8000;
+    
+    cpu.RegisterA = 0x03; 
+    cpu.SetCarryFlag(true); 
+    // Operação: 3 - 5 = -2. Em byte unsigned isso é 0xFE (254).
+    // Como precisou "pegar emprestado" além de 0, o Carry cai pra 0.
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    Assert.Equal(0xFE, cpu.RegisterA); // 254 (Representação de -2 em complemento de 2)
+    
+    var status = cpu.GetRegisterStatus();
+    Assert.Equal(0, status & (byte)StatusFlag.Carry); // C=0 indicando Borrow
+    Assert.Equal((byte)StatusFlag.Negative, status & (byte)StatusFlag.Negative); // Resultado negativo
+}
+
+[Fact]
+public void TestSbc__SignedOverflow_PositiveMinusNegative__ShouldSetOverflowFlag()
+{
+    // Arrange: SBC Immediate
+    var program = new byte[0x10000];
+    program[0x8000] = 0xE9; 
+    program[0x8001] = 0xB0; // 0xB0 = -80 em signed
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.ProgramCounter = 0x8000;
+    
+    cpu.RegisterA = 0x50; // 0x50 = 80 em signed
+    cpu.SetCarryFlag(true); 
+    // Operação: 80 - (-80) = 160. 
+    // 160 não cabe no limite de +127 do signed byte. Ocorre Overflow! (O bit 7 vai ligar)
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    Assert.Equal(0xA0, cpu.RegisterA); // 160 em decimal
+    
+    var status = cpu.GetRegisterStatus();
+    // A flag de Overflow DEVE ligar (Bit 6 = 0x40)
+    Assert.Equal(0b0100_0000, status & 0b0100_0000); 
+    Assert.Equal(0, status & (byte)StatusFlag.Carry); // Operação passa do limite unsigned, Carry = 0
+}
+
+[Fact]
+public void TestSbc__SignedOverflow_NegativeMinusPositive__ShouldSetOverflowFlag()
+{
+    // Arrange: SBC Immediate
+    var program = new byte[0x10000];
+    program[0x8000] = 0xE9; 
+    program[0x8001] = 0x01; // 1
+
+    var mem = NesMemory.FromBytesArray(program);
+    var cpu = new NesEmu.CPU.CPU(mem);
+    cpu.ProgramCounter = 0x8000;
+    
+    cpu.RegisterA = 0x80; // 0x80 = -128
+    cpu.SetCarryFlag(true); 
+    // Operação: -128 - 1 = -129. 
+    // -129 não cabe no limite de -128 do signed byte. Ocorre Overflow! (O bit 7 vai desligar, dando 0x7F)
+
+    // Act
+    cpu.Interpret(limit: 1);
+
+    // Assert
+    Assert.Equal(0x7F, cpu.RegisterA); // +127 (estourou o limite)
+    
+    var status = cpu.GetRegisterStatus();
+    Assert.Equal(0b0100_0000, status & 0b0100_0000); // Overflow ligado
+    Assert.Equal((byte)StatusFlag.Carry, status & (byte)StatusFlag.Carry); // Carry=1
+}
+
+#endregion
 }

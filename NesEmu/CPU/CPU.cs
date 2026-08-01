@@ -420,6 +420,17 @@ public class CPU
 
         // RTS
         _instructions.Add(0x60, () => Rts());
+
+
+        // SBC
+        _instructions.Add(0xE9, () => Sbc(AddressingMode.Immediate));
+        _instructions.Add(0xE5, () => Sbc(AddressingMode.ZeroPage));
+        _instructions.Add(0xF5, () => Sbc(AddressingMode.ZeroPageX));
+        _instructions.Add(0xED, () => Sbc(AddressingMode.Absolute));
+        _instructions.Add(0xFD, () => Sbc(AddressingMode.AbsoluteX));
+        _instructions.Add(0xF9, () => Sbc(AddressingMode.AbsoluteY));
+        _instructions.Add(0xE1, () => Sbc(AddressingMode.IndirectX));
+        _instructions.Add(0xF1, () => Sbc(AddressingMode.IndirectY));
     }
 
 
@@ -1409,6 +1420,54 @@ public class CPU
 
         // 3. Junta os dois bytes e obrigatoriamente soma +1 (para compensar o -1 do JSR)
         ProgramCounter = (ushort)(((pcHi << 8) | pcLo) + 1);
+    }
+
+
+    /// <summary>
+    /// SBC instruction. Subtract with Carry.
+    /// </summary>
+    /// <param name="mode"></param>
+    private void Sbc(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.Immediate,
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX,
+            AddressingMode.AbsoluteY,
+            AddressingMode.IndirectX,
+            AddressingMode.IndirectY
+        };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var opAddr = GetOperandAddress(mode);
+        var value = _nesMemory.Read(opAddr);
+
+        // 1. Obtém o Carry (0 ou 1)
+        int carry = (GetRegisterStatus() & (byte)StatusFlag.Carry) != 0 ? 1 : 0;
+
+        // 2. Inverte os bits do valor lido (Complemento de 1)
+        // Isso é o mesmo que (byte)(~value)
+        byte inverseValue = (byte)(value ^ 0xFF);
+
+        // 3. Usa um INT temporário para guardar a soma. 
+        // A lógica do 6502 para subtrair é: A + (~M) + C
+        int temp = RegisterA + inverseValue + carry;
+
+        // 4. Se 'temp' for maior que 255 (0xFF), quer dizer que NÃO houve borrow (Carry = 1)
+        SetCarryFlag(temp > 0xFF);
+        UpdateZeroFlag((byte)temp);
+        UpdateNegativeFlag((byte)temp);
+
+        // 5. Calcula o Overflow passando o valor INVERTIDO, usando a mesma lógica do ADC
+        UpdateOverflowFlag(RegisterA, inverseValue, (byte)temp);
+
+        // 6. Finalmente, trunca o int devolta para byte no Acumulador
+        RegisterA = (byte)temp;
     }
 
 

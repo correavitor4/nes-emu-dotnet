@@ -294,7 +294,7 @@ public class CPU
         _instructions.Add(0xD0, () => Bne(AddressingMode.Relative));
 
         // BLP
-        _instructions.Add(0x10, () => Blp(AddressingMode.Relative));
+        _instructions.Add(0x10, () => Bpl(AddressingMode.Relative));
 
         // BVC
         _instructions.Add(0x50, () => Bvc(AddressingMode.Relative));
@@ -804,7 +804,7 @@ public class CPU
     /// <param name="mode"></param>
     /// <returns></returns>
     /// <exception cref="InvalidEnumArgumentException"></exception>
-    private void Blp(AddressingMode mode)
+    private void Bpl(AddressingMode mode)
     {
         if (!mode.Equals(AddressingMode.Relative))
             throw new InvalidEnumArgumentException("Only relative addressing mode is supported");

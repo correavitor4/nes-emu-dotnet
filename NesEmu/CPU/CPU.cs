@@ -195,6 +195,22 @@ public class CPU
             _status &= 0b1111_1110;
     }
 
+    public void SetDecimalFlag(bool value)
+    {
+        if (value)
+            _status |= 0b0000_1000; // Liga o Bit 3 (0x08)
+        else
+            _status &= 0b1111_0111; // Desliga o Bit 3
+    }
+
+    public void SetInterruptDisableFlag(bool value)
+    {
+        if (value)
+            _status |= 0b0000_0100; // Liga o Bit 2 (0x04)
+        else
+            _status &= 0b1111_1011; // Desliga o Bit 2
+    }
+
     private void RegisterInstructions()
     {
         // LDA
@@ -435,7 +451,15 @@ public class CPU
 
         // SEC
         _instructions.Add(0x38, () => Sec());
-    
+
+
+        // SED
+        _instructions.Add(0xF8, () => Sed());
+
+
+        // SEI
+        _instructions.Add(0x78, () => Sei());
+
     }
 
 
@@ -1483,6 +1507,22 @@ public class CPU
     /// <returns></returns>
     /// <exception cref="InvalidEnumArgumentException"></exception>
     private void Sec() { SetCarryFlag(true); }
+
+    /// <summary>
+    /// SED instruction. Set Decimal Flag
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Sed() { SetDecimalFlag(true); }
+
+    /// <summary>
+    /// SEI instruction. Set Interrupt Flag
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Sei() { SetInterruptDisableFlag(true); }
 
     #endregion
 

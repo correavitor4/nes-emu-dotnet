@@ -5237,4 +5237,123 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region SED - Set Decimal Flag Tests
+
+    [Fact]
+    public void TestSed__WhenDecimalIsClear__ShouldSetDecimalFlag()
+    {
+        // Arrange: SED (Opcode 0xF8)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xF8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Garante que a flag Decimal (Bit 3) comece desligada
+        cpu.SetStatusFlag(0b0000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        // Verifica se o Bit 3 (0b0000_1000 / 0x08) ligou
+        Assert.Equal(0b0000_1000, status & 0b0000_1000);
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestSed__Isolation__ShouldNotModifyOtherFlagsOrRegisters()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xF8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x11;
+        cpu.RegisterX = 0x22;
+        cpu.RegisterY = 0x33;
+
+        // Liga todas as flags, EXCETO a flag Decimal (Bit 3).
+        // 0b1111_0111 = 0xF7
+        cpu.SetStatusFlag(0b1111_0111);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x11, cpu.RegisterA);
+        Assert.Equal(0x22, cpu.RegisterX);
+        Assert.Equal(0x33, cpu.RegisterY);
+
+        // Todas as flags originais + a nova flag Decimal = 0xFF (Tudo ligado)
+        Assert.Equal(0b1111_1111, cpu.GetRegisterStatus());
+    }
+
+    #endregion
+
+    #region SEI - Set Interrupt Disable Tests
+
+    [Fact]
+    public void TestSei__WhenInterruptIsClear__ShouldSetInterruptDisableFlag()
+    {
+        // Arrange: SEI (Opcode 0x78)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x78;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Garante que a flag Interrupt Disable (Bit 2) comece desligada
+        cpu.SetStatusFlag(0b0000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        var status = cpu.GetRegisterStatus();
+        // Verifica se o Bit 2 (0b0000_0100 / 0x04) ligou
+        Assert.Equal(0b0000_0100, status & 0b0000_0100);
+        Assert.Equal(0x8001, cpu.ProgramCounter);
+    }
+
+    [Fact]
+    public void TestSei__Isolation__ShouldNotModifyOtherFlagsOrRegisters()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0x78;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0xAA;
+        cpu.RegisterX = 0xBB;
+        cpu.RegisterY = 0xCC;
+
+        // Liga todas as flags, EXCETO a flag Interrupt Disable (Bit 2).
+        // 0b1111_1011 = 0xFB
+        cpu.SetStatusFlag(0b1111_1011);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xAA, cpu.RegisterA);
+        Assert.Equal(0xBB, cpu.RegisterX);
+        Assert.Equal(0xCC, cpu.RegisterY);
+
+        // Todas as flags originais + a nova flag Interrupt Disable = 0xFF (Tudo ligado)
+        Assert.Equal(0b1111_1111, cpu.GetRegisterStatus());
+    }
+
+    #endregion
 }

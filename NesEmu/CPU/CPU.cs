@@ -482,6 +482,10 @@ public class CPU
         _instructions.Add(0x94, () => Sty(AddressingMode.ZeroPageX));
         _instructions.Add(0x8C, () => Sty(AddressingMode.Absolute));
 
+
+        // TAY
+        _instructions.Add(0xA8, () => Tay());
+
     }
 
 
@@ -1619,6 +1623,22 @@ public class CPU
         var addr = GetOperandAddress(mode);
         _nesMemory.Write(addr, RegisterY);
     }
+
+    /// <summary>
+    /// TAY instruction. Transfer Accumulator to Y
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Tay()
+    {
+        RegisterY = RegisterA;
+
+        UpdateZeroFlag(RegisterY);
+        UpdateNegativeFlag(RegisterY);
+    }
+
+
 
     #endregion
 

@@ -5518,5 +5518,98 @@ public class InstructionsTests
 
     #endregion
 
-    
+    #region TAY - Transfer Accumulator to Y Tests
+
+    [Fact]
+    public void TestTay__TransferPositiveValue__ShouldUpdateYAndClearFlags()
+    {
+        // Arrange: TAY (Opcode 0xA8)
+        var program = new byte[0x10000];
+        program[0x8000] = 0xA8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Valor positivo (bit 7 é 0, e não é zero absoluto)
+        cpu.RegisterA = 0x55;
+        cpu.RegisterY = 0x00; // Começa diferente
+
+        // Suja as flags Zero e Negative para garantir que o TAY vai limpá-las
+        // 0b1000_0010 = Negative(7) e Zero(1) ligados
+        cpu.SetStatusFlag(0b1000_0010);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x55, cpu.RegisterY); // Y deve receber o valor de A
+        Assert.Equal(0x55, cpu.RegisterA); // A não deve ser alterado
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0, status & 0b1000_0000); // Flag N deve ser 0 (desligada)
+        Assert.Equal(0, status & 0b0000_0010); // Flag Z deve ser 0 (desligada)
+
+        Assert.Equal(0x8001, cpu.ProgramCounter); // TAY tem 1 byte
+    }
+
+    [Fact]
+    public void TestTay__TransferZero__ShouldSetZeroFlagAndClearNegative()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xA8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Testando transferência de Zero
+        cpu.RegisterA = 0x00;
+        cpu.RegisterY = 0xFF; // Começa diferente
+
+        // Limpa a flag Zero e liga a Negative para checar a sobrescrita
+        cpu.SetStatusFlag(0b1000_0000);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x00, cpu.RegisterY);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b0000_0010, status & 0b0000_0010); // Flag Z DEVE ser 1
+        Assert.Equal(0, status & 0b1000_0000); // Flag N DEVE ser 0
+    }
+
+    [Fact]
+    public void TestTay__TransferNegativeValue__ShouldSetNegativeFlagAndClearZero()
+    {
+        // Arrange
+        var program = new byte[0x10000];
+        program[0x8000] = 0xA8;
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Valor negativo (bit 7 é 1). 0x80 até 0xFF.
+        cpu.RegisterA = 0xAA; // 0b1010_1010
+        cpu.RegisterY = 0x00;
+
+        // Liga a flag Zero e limpa a Negative para checar a sobrescrita
+        cpu.SetStatusFlag(0b0000_0010);
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0xAA, cpu.RegisterY);
+
+        var status = cpu.GetRegisterStatus();
+        Assert.Equal(0b1000_0000, status & 0b1000_0000); // Flag N DEVE ser 1
+        Assert.Equal(0, status & 0b0000_0010); // Flag Z DEVE ser 0
+    }
+
+    #endregion
 }

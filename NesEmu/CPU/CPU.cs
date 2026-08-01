@@ -498,6 +498,9 @@ public class CPU
         // TXS
         _instructions.Add(0x9A, () => Txs());
 
+        // TYA
+        _instructions.Add(0x98, () => Tya());
+
     }
 
 
@@ -1686,6 +1689,20 @@ public class CPU
     /// <returns></returns>
     /// <exception cref="InvalidEnumArgumentException"></exception>
     private void Txs() { StackPointer = RegisterX; }
+
+
+    /// <summary>
+    /// TYA instruction. Transfer Y to Accumulator
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Tya()
+    {
+        RegisterA = RegisterY;
+        UpdateZeroFlag(RegisterA);
+        UpdateNegativeFlag(RegisterA);
+    }
 
     #endregion
 

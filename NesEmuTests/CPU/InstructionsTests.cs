@@ -5356,4 +5356,167 @@ public class InstructionsTests
     }
 
     #endregion
+
+
+    #region STA - Advanced Addressing Modes Tests
+
+    [Fact]
+    public void TestSta__AbsoluteX__ShouldStoreAccumulatorWithOffset()
+    {
+        // Arrange: STA Absolute,X (Opcode 0x9D)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x9D;
+        program[0x8001] = 0x00; // Low byte do endereço ($00)
+        program[0x8002] = 0x20; // High byte do endereço ($20) -> Endereço base: $2000
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterA = 0x99; // Valor a ser salvo
+        cpu.RegisterX = 0x05; // Offset X = 5. Endereço final deve ser $2005.
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x99, mem.Read(0x2005));
+        Assert.Equal(0x8003, cpu.ProgramCounter); // Absolute avança 3 bytes
+    }
+
+    [Fact]
+    public void TestSta__IndirectY__ShouldResolvePointerAndAddOffset()
+    {
+        // Arrange: STA (Indirect),Y (Opcode 0x91)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x91;
+        program[0x8001] = 0x10; // Ponteiro na Zero Page (Endereço $10)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        // Configura o ponteiro na Zero Page (em $10 e $11) para apontar para $4000
+        mem.Write(0x0010, 0x00); // Low byte
+        mem.Write(0x0011, 0x40); // High byte
+
+        cpu.RegisterA = 0x77;
+        cpu.RegisterY = 0x08; // Offset Y = 8. Endereço final deve ser $4000 + 8 = $4008.
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x77, mem.Read(0x4008));
+        Assert.Equal(0x8002, cpu.ProgramCounter); // Indirect Y avança 2 bytes
+    }
+
+    #endregion
+
+    #region STX - Advanced Addressing Modes Tests
+
+    [Fact]
+    public void TestStx__ZeroPageY_WithWrapAround__ShouldStayInZeroPage()
+    {
+        // Arrange: STX ZeroPage,Y (Opcode 0x96)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x96;
+        program[0x8001] = 0xF0; // Endereço base na Zero Page ($F0)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterX = 0x42; // Valor a ser salvo
+        cpu.RegisterY = 0x15; // Offset Y = $15. 
+
+        // Matemática do Wrap-around: $F0 + $15 = $0105. 
+        // Como é ZeroPage, o byte alto é ignorado. O endereço final DEVE ser $0005.
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x42, mem.Read(0x0005));
+        // Garante que não vazou para a página 1
+        Assert.NotEqual(0x42, mem.Read(0x0105));
+    }
+
+    [Fact]
+    public void TestStx__Absolute__ShouldStoreXInAbsoluteAddress()
+    {
+        // Arrange: STX Absolute (Opcode 0x8E)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x8E;
+        program[0x8001] = 0x34; // Low byte
+        program[0x8002] = 0x12; // High byte -> Endereço: $1234
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterX = 0x11;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x11, mem.Read(0x1234));
+    }
+
+    #endregion
+
+    #region STY - Advanced Addressing Modes Tests
+
+    [Fact]
+    public void TestSty__ZeroPageX_WithWrapAround__ShouldStayInZeroPage()
+    {
+        // Arrange: STY ZeroPage,X (Opcode 0x94)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x94;
+        program[0x8001] = 0xFE; // Endereço base na Zero Page ($FE)
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterY = 0x33; // Valor a ser salvo
+        cpu.RegisterX = 0x05; // Offset X = $05. 
+
+        // Matemática do Wrap-around: $FE + $05 = $0103. 
+        // ZeroPage obriga a ficar na página 0. Endereço final DEVE ser $0003.
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x33, mem.Read(0x0003));
+        Assert.NotEqual(0x33, mem.Read(0x0103)); // Não pode vazar para a pilha (Page 1)
+    }
+
+    [Fact]
+    public void TestSty__Absolute__ShouldStoreYInAbsoluteAddress()
+    {
+        // Arrange: STY Absolute (Opcode 0x8C)
+        var program = new byte[0x10000];
+        program[0x8000] = 0x8C;
+        program[0x8001] = 0x00; // Low byte
+        program[0x8002] = 0x40; // High byte -> Endereço: $4000
+
+        var mem = NesMemory.FromBytesArray(program);
+        var cpu = new NesEmu.CPU.CPU(mem);
+        cpu.ProgramCounter = 0x8000;
+
+        cpu.RegisterY = 0x99;
+
+        // Act
+        cpu.Interpret(limit: 1);
+
+        // Assert
+        Assert.Equal(0x99, mem.Read(0x4000));
+    }
+
+    #endregion
+
+    
 }

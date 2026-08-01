@@ -460,6 +460,28 @@ public class CPU
         // SEI
         _instructions.Add(0x78, () => Sei());
 
+
+        // STA
+        _instructions.Add(0x85, () => Sta(AddressingMode.ZeroPage));
+        _instructions.Add(0x95, () => Sta(AddressingMode.ZeroPageX));
+        _instructions.Add(0x8D, () => Sta(AddressingMode.Absolute));
+        _instructions.Add(0x9D, () => Sta(AddressingMode.AbsoluteX));
+        _instructions.Add(0x99, () => Sta(AddressingMode.AbsoluteY));
+        _instructions.Add(0x81, () => Sta(AddressingMode.IndirectX));
+        _instructions.Add(0x91, () => Sta(AddressingMode.IndirectY));
+
+
+        // STX
+        _instructions.Add(0x86, () => Stx(AddressingMode.ZeroPage));
+        _instructions.Add(0x96, () => Stx(AddressingMode.ZeroPageY));
+        _instructions.Add(0x8E, () => Stx(AddressingMode.Absolute));
+
+
+        // STY
+        _instructions.Add(0x84, () => Sty(AddressingMode.ZeroPage));
+        _instructions.Add(0x94, () => Sty(AddressingMode.ZeroPageX));
+        _instructions.Add(0x8C, () => Sty(AddressingMode.Absolute));
+
     }
 
 
@@ -1523,6 +1545,80 @@ public class CPU
     /// <returns></returns>
     /// <exception cref="InvalidEnumArgumentException"></exception>
     private void Sei() { SetInterruptDisableFlag(true); }
+
+    /// <summary>
+    /// STA instruction. Store Accumulator
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Sta(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute,
+            AddressingMode.AbsoluteX,
+            AddressingMode.AbsoluteY,
+            AddressingMode.IndirectX,
+            AddressingMode.IndirectY
+        };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var addr = GetOperandAddress(mode);
+        _nesMemory.Write(addr, RegisterA);
+
+
+    }
+
+
+    /// <summary>
+    /// STX instruction. Store X Register
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Stx(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageY,
+            AddressingMode.Absolute
+        };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var addr = GetOperandAddress(mode);
+        _nesMemory.Write(addr, RegisterX);
+
+    }
+
+    /// <summary>
+    /// STY instruction. Store Y Register
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidEnumArgumentException"></exception>
+    private void Sty(AddressingMode mode)
+    {
+        var allowedModes = new List<AddressingMode>
+        {
+            AddressingMode.ZeroPage,
+            AddressingMode.ZeroPageX,
+            AddressingMode.Absolute
+        };
+
+        if (!allowedModes.Contains(mode))
+            throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
+
+        var addr = GetOperandAddress(mode);
+        _nesMemory.Write(addr, RegisterY);
+    }
 
     #endregion
 

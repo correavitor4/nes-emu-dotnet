@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using NesEmu.Exceptions;
 
 namespace NesEmu.CPU;
 
@@ -27,7 +28,15 @@ public class CPU
             var opcode = _nesMemory.Read(ProgramCounter);
             ProgramCounter++;
 
-            _instructions[opcode]();
+            if (_instructions.TryGetValue(opcode, out var instruction))
+            {
+                instruction();
+            }
+            else
+            {
+                // Se o jogo tentar rodar um opcode que não existe (Opcodes Ilegais)
+                throw new IllegalOpcodeException($"Opcode Ilegal ou não implementado encontrado: 0x{opcode:X2} no endereço 0x{ProgramCounter - 1:X4}");
+            }
         }
     }
 
@@ -39,7 +48,14 @@ public class CPU
             var opcode = _nesMemory.Read(ProgramCounter);
             ProgramCounter++;
 
-            _instructions[opcode]();
+            if (_instructions.TryGetValue(opcode, out var instruction))
+            {
+                instruction();
+            }
+            else
+            {
+                throw new IllegalOpcodeException($"Opcode Ilegal ou não implementado encontrado: 0x{opcode:X2} no endereço 0x{ProgramCounter - 1:X4}");
+            }
             limit -= 1;
         }
     }
@@ -1333,7 +1349,7 @@ public class CPU
     private void Plp()
     {
         var temp = PopStack();
-        _status = (byte)((temp & 0b1110_1111) | 0b0010_0000); 
+        _status = (byte)((temp & 0b1110_1111) | 0b0010_0000);
     }
 
 

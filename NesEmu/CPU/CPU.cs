@@ -1333,7 +1333,7 @@ public class CPU
     private void Plp()
     {
         var temp = PopStack();
-        _status = (byte)(temp & 0b1100_1111);
+        _status = (byte)((temp & 0b1110_1111) | 0b0010_0000); 
     }
 
 
@@ -1461,9 +1461,8 @@ public class CPU
     /// <exception cref="InvalidEnumArgumentException"></exception>
     private void Rti()
     {
-        // 1. Retira o Status (8 bits) e aplica a máscara para limpar os bits 4 e 5
-        // Usamos 0xCF (0b1100_1111) conforme o comportamento padrão da sua CPU
-        _status = (byte)(PopStack() & 0xCF);
+        byte statusFromStack = PopStack();
+        _status = (byte)((statusFromStack & 0b1110_1111) | 0b0010_0000);
 
         // 2. Retira o PC Low (8 bits)
         byte pcLo = PopStack();

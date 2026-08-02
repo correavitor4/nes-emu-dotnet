@@ -23,4 +23,13 @@
       <ProjectReference Include="..\NesEmu\NesEmu.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Update="nestest\nestest.nes">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="nestest\nestest.log">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
 </Project>

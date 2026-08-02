@@ -4204,8 +4204,7 @@ public class InstructionsTests
         Assert.Equal(0x8001, cpu.ProgramCounter);
         Assert.Equal(0xFF, cpu.GetStackPointer());
 
-        // AJUSTADO: Sem o Bit 5 (0x20). Esperado: 0b1100_0101 (197 em decimal)
-        byte statusEsperado = 0b1100_0101;
+        byte statusEsperado = 0b1110_0101;
         Assert.Equal(statusEsperado, cpu.GetRegisterStatus());
     }
 
@@ -4230,7 +4229,7 @@ public class InstructionsTests
         // Assert
         // AJUSTADO: Como as demais flags eram 0 e o Bit 5 não fica ativo no status interno da sua CPU,
         // o valor esperado agora é exatamente 0.
-        Assert.Equal(0, cpu.GetRegisterStatus());
+        Assert.Equal(0b0010_0000, cpu.GetRegisterStatus());
     }
 
     [Fact]
@@ -4255,8 +4254,8 @@ public class InstructionsTests
         // Assert
         Assert.Equal(0x00, cpu.GetStackPointer());
 
-        // AJUSTADO: Sem o Bit 5 (0x20). Esperado: 0b1000_0001 (129 em decimal)
-        Assert.Equal(129, cpu.GetRegisterStatus());
+        
+        Assert.Equal(0b1010_0001, cpu.GetRegisterStatus());
     }
 
     #endregion
@@ -4848,7 +4847,7 @@ public class InstructionsTests
         Assert.Equal(0xFF, cpu.GetStackPointer());
 
         // 3. As flags devem ter sido restauradas (Considerando o comportamento da sua CPU de ignorar bit 5)
-        Assert.Equal(0x81, cpu.GetRegisterStatus());
+        Assert.Equal(0b1010_0001, cpu.GetRegisterStatus());
     }
 
     [Fact]
@@ -4878,7 +4877,7 @@ public class InstructionsTests
 
         // O valor do status deve ignorar o bit 4 (Break) e o bit 5 (Unused) conforme comportamento do seu núcleo.
         // Como os demais bits restaurados eram 0, o status restaurado na CPU deve ser 0.
-        Assert.Equal(0, cpu.GetRegisterStatus());
+        Assert.Equal(0b0010_0000, cpu.GetRegisterStatus());
     }
 
     [Fact]
@@ -4907,7 +4906,7 @@ public class InstructionsTests
         // Assert
         Assert.Equal(0x9922, cpu.ProgramCounter);
         Assert.Equal(0x01, cpu.GetStackPointer());
-        Assert.Equal(0x42, cpu.GetRegisterStatus());
+        Assert.Equal(0b01100010, cpu.GetRegisterStatus());
     }
 
     #endregion

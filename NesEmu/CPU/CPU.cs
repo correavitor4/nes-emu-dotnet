@@ -21,10 +21,13 @@ public class CPU
         RegisterInstructions();
     }
 
-    public void Interpret()
+    public void Interpret(Action<CPU>? callback = null)
     {
         while (ProgramCounter < _nesMemory.Length)
         {
+
+            callback?.Invoke(this);
+
             var opcode = _nesMemory.Read(ProgramCounter);
             ProgramCounter++;
 
@@ -65,7 +68,7 @@ public class CPU
         ResetAllRegisters();
         ResetRegisterStatus();
 
-        ProgramCounter = _nesMemory.ReadLittleEndian(0xFFCC);
+        ProgramCounter = _nesMemory.ReadLittleEndian(0xFFFC);
     }
 
     private void Load()
@@ -73,11 +76,18 @@ public class CPU
         _nesMemory.WriteLittleEndian(0xFFCC, 0x8000);
     }
 
-    public void LoadAndInterpret()
+    /// <summary>
+    /// Carrega o programa na memória, reinicia os registradores (Reset) e inicia o ciclo principal de execução da CPU.
+    /// </summary>
+    /// <param name="callback">
+    /// Uma função opcional invocada antes da execução de cada instrução. 
+    /// Utilizada para injetar dependências externas a cada ciclo, como ler entradas do controle (I/O), atualizar a renderização da tela ou monitorar o estado interno para debug.
+    /// </param>
+    public void LoadAndInterpret(Action<CPU>? callback = null)
     {
         Load();
         Reset();
-        Interpret();
+        Interpret(callback);
     }
 
     private void ResetAllRegisters()

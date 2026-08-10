@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using NesEmu.BUS;
 using NesEmu.Exceptions;
 
 namespace NesEmu.CPU;
@@ -12,23 +13,23 @@ public class CPU
     public ushort ProgramCounter = 0;
     private byte StackPointer = 0xFF;
 
-    private readonly Memory.NesMemory _nesMemory;
+    private readonly Bus _bus;
     private Dictionary<byte, Action> _instructions = new Dictionary<byte, Action>();
 
     public CPU(Memory.NesMemory nesMemory)
     {
-        this._nesMemory = nesMemory;
+        _bus = new Bus(nesMemory);
         RegisterInstructions();
     }
 
     public void Interpret(Action<CPU>? callback = null)
     {
-        while (ProgramCounter < _nesMemory.Length)
+        while (ProgramCounter < _bus.MemoryLength)
         {
 
             callback?.Invoke(this);
 
-            var opcode = _nesMemory.Read(ProgramCounter);
+            var opcode = _bus.Read(ProgramCounter);
             ProgramCounter++;
 
             if (_instructions.TryGetValue(opcode, out var instruction))
@@ -46,9 +47,9 @@ public class CPU
     //For testing
     public void Interpret(int limit)
     {
-        while (ProgramCounter < _nesMemory.Length && limit > 0)
+        while (ProgramCounter < _bus.MemoryLength && limit > 0)
         {
-            var opcode = _nesMemory.Read(ProgramCounter);
+            var opcode = _bus.Read(ProgramCounter);
             ProgramCounter++;
 
             if (_instructions.TryGetValue(opcode, out var instruction))
@@ -68,12 +69,12 @@ public class CPU
         ResetAllRegisters();
         ResetRegisterStatus();
 
-        ProgramCounter = _nesMemory.ReadLittleEndian(0xFFFC);
+        ProgramCounter = _bus.ReadLittleEndian(0xFFFC);
     }
 
     private void Load()
     {
-        _nesMemory.WriteLittleEndian(0xFFCC, 0x8000);
+        _bus.WriteLittleEndian(0xFFCC, 0x8000);
     }
 
     /// <summary>
@@ -546,7 +547,7 @@ public class CPU
     public void Lda(AddressingMode mode)
     {
         var addr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(addr);
+        var value = _bus.Read(addr);
         RegisterA = value;
 
         UpdateZeroFlag(RegisterA);
@@ -561,7 +562,7 @@ public class CPU
     public void Ldx(AddressingMode mode)
     {
         var addr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(addr);
+        var value = _bus.Read(addr);
         RegisterX = value;
 
         UpdateZeroFlag(RegisterX);
@@ -606,7 +607,7 @@ public class CPU
     private void Adc(AddressingMode mode)
     {
         var operand = GetOperandAddress(mode);
-        var value = _nesMemory.Read(operand);
+        var value = _bus.Read(operand);
 
         int carry = (_status & 0b0000_0001) == 0b0000_0001 ? 1 : 0;
 
@@ -629,7 +630,7 @@ public class CPU
     private void And(AddressingMode mode)
     {
         var operand = GetOperandAddress(mode);
-        var value = _nesMemory.Read(operand);
+        var value = _bus.Read(operand);
 
         RegisterA = (byte)(RegisterA & value);
 
@@ -654,7 +655,7 @@ public class CPU
         else
         {
             operand = GetOperandAddress(mode);
-            value = _nesMemory.Read(operand ?? throw new ArgumentNullException());
+            value = _bus.Read(operand ?? throw new ArgumentNullException());
         }
 
         var temp = value << 1;
@@ -669,7 +670,7 @@ public class CPU
             return;
         }
 
-        _nesMemory.Write(operand ?? throw new ArgumentNullException(), (byte)temp);
+        _bus.Write(operand ?? throw new ArgumentNullException(), (byte)temp);
     }
 
     /// <summary>
@@ -679,7 +680,7 @@ public class CPU
     private void Ldy(AddressingMode mode)
     {
         var param = GetOperandAddress(mode);
-        var value = _nesMemory.Read(param);
+        var value = _bus.Read(param);
 
         RegisterY = value;
         UpdateZeroFlag(RegisterY);
@@ -702,7 +703,7 @@ public class CPU
             throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
 
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
@@ -723,7 +724,7 @@ public class CPU
             throw new InvalidEnumArgumentException("Only relative addressing mode is supported during BCC instruction");
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -745,7 +746,7 @@ public class CPU
             throw new InvalidEnumArgumentException("Only relative addressing mode is supported");
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -758,7 +759,7 @@ public class CPU
     private void Bit(AddressingMode mode)
     {
         var addr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(addr);
+        var value = _bus.Read(addr);
 
         // 1. Zero Flag: Z = (A AND M) == 0
         // Note: usamos != 0 para saber se o resultado contém bits, 
@@ -795,7 +796,7 @@ public class CPU
         }
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -818,7 +819,7 @@ public class CPU
         }
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -843,7 +844,7 @@ public class CPU
         }
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -868,7 +869,7 @@ public class CPU
         }
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -893,7 +894,7 @@ public class CPU
         }
 
         var param = GetOperandAddress(mode);
-        var value = (sbyte)_nesMemory.Read(param);
+        var value = (sbyte)_bus.Read(param);
         ProgramCounter = (ushort)(ProgramCounter + value);
     }
 
@@ -957,7 +958,7 @@ public class CPU
             throw new InvalidEnumArgumentException("addressingMode", (int)addressingMode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(addressingMode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         var registerAValue = RegisterA;
         var res = registerAValue - value;
@@ -994,7 +995,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         var registerXValue = RegisterX;
         var res = registerXValue - value;
@@ -1029,7 +1030,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         var registerYValue = RegisterY;
         var res = registerYValue - value;
@@ -1069,9 +1070,9 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
         value--;
-        _nesMemory.Write(opAddr, value);
+        _bus.Write(opAddr, value);
 
         UpdateZeroFlag(value);
         UpdateNegativeFlag(value);
@@ -1134,7 +1135,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         RegisterA = (byte)(RegisterA ^ value);
 
@@ -1165,9 +1166,9 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
         value++;
-        _nesMemory.Write(opAddr, value);
+        _bus.Write(opAddr, value);
 
         UpdateZeroFlag(value);
         UpdateNegativeFlag(value);
@@ -1265,11 +1266,11 @@ public class CPU
         }
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         carry = (byte)(value & 1);
         value >>= 1;
-        _nesMemory.Write(opAddr, value);
+        _bus.Write(opAddr, value);
 
         UpdateZeroFlag(value);
         UpdateNegativeFlag(value);
@@ -1309,7 +1310,7 @@ public class CPU
 
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
         RegisterA |= value;
         UpdateZeroFlag(RegisterA);
         UpdateNegativeFlag(RegisterA);
@@ -1403,7 +1404,7 @@ public class CPU
 
         // Modo Memória
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         // 2. O novo Carry será o Bit 7 do valor antes de rotacionar
         byte memNewCarry = (byte)((value >> 7) & 1);
@@ -1412,7 +1413,7 @@ public class CPU
         value = (byte)((value << 1) | oldCarry);
 
         // Salva na memória
-        _nesMemory.Write(opAddr, value);
+        _bus.Write(opAddr, value);
 
         // 4. Atualiza as flags
         UpdateZeroFlag(value);
@@ -1461,7 +1462,7 @@ public class CPU
 
         // Modo Memória
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         // 2. O novo Carry é o Bit 0 do valor antes de rotacionar
         byte memNewCarry = (byte)(value & 1);
@@ -1470,7 +1471,7 @@ public class CPU
         value = (byte)((value >> 1) | (oldCarry << 7));
 
         // Salva na memória
-        _nesMemory.Write(opAddr, value);
+        _bus.Write(opAddr, value);
 
         // 4. Atualiza as flags
         UpdateZeroFlag(value);
@@ -1540,7 +1541,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var opAddr = GetOperandAddress(mode);
-        var value = _nesMemory.Read(opAddr);
+        var value = _bus.Read(opAddr);
 
         // 1. Obtém o Carry (0 ou 1)
         int carry = (GetRegisterStatus() & (byte)StatusFlag.Carry) != 0 ? 1 : 0;
@@ -1613,7 +1614,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var addr = GetOperandAddress(mode);
-        _nesMemory.Write(addr, RegisterA);
+        _bus.Write(addr, RegisterA);
 
 
     }
@@ -1638,7 +1639,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var addr = GetOperandAddress(mode);
-        _nesMemory.Write(addr, RegisterX);
+        _bus.Write(addr, RegisterX);
 
     }
 
@@ -1661,7 +1662,7 @@ public class CPU
             throw new InvalidEnumArgumentException("mode", (int)mode, typeof(AddressingMode));
 
         var addr = GetOperandAddress(mode);
-        _nesMemory.Write(addr, RegisterY);
+        _bus.Write(addr, RegisterY);
     }
 
     /// <summary>
@@ -1799,20 +1800,20 @@ public class CPU
 
     private ushort GetIndirectX()
     {
-        var baseAddr = _nesMemory.Read(ProgramCounter);
+        var baseAddr = _bus.Read(ProgramCounter);
         var ptr = WappingAdd(baseAddr, RegisterX);
 
-        var lo = _nesMemory.Read(ptr);
-        var hi = _nesMemory.Read(WappingAdd(ptr, 1));
+        var lo = _bus.Read(ptr);
+        var hi = _bus.Read(WappingAdd(ptr, 1));
         return (ushort)(hi << 8 | lo);
     }
 
     private ushort GetIndirectY()
     {
-        var baseAddr = _nesMemory.Read(ProgramCounter); // Base ZP
+        var baseAddr = _bus.Read(ProgramCounter); // Base ZP
 
-        var lo = _nesMemory.Read(baseAddr);
-        var hi = _nesMemory.Read(WappingAdd(baseAddr, (byte)1));
+        var lo = _bus.Read(baseAddr);
+        var hi = _bus.Read(WappingAdd(baseAddr, (byte)1));
         var ptr = (ushort)((hi << 8) | lo); // Ponteiro 16-bit
 
         return WappingAdd(ptr, RegisterY); // ptr + Y
@@ -1820,25 +1821,25 @@ public class CPU
 
     private ushort GetAbsoluteX()
     {
-        var baseAddr = _nesMemory.ReadLittleEndian(ProgramCounter);
+        var baseAddr = _bus.ReadLittleEndian(ProgramCounter);
         return WappingAdd(baseAddr, RegisterX);
     }
 
     private ushort GetAbsoluteY()
     {
-        var baseAddr = _nesMemory.ReadLittleEndian(ProgramCounter);
+        var baseAddr = _bus.ReadLittleEndian(ProgramCounter);
         return WappingAdd(baseAddr, RegisterY);
     }
 
     private byte GetZeroPageY()
     {
-        var baseAddr = _nesMemory.Read(ProgramCounter);
+        var baseAddr = _bus.Read(ProgramCounter);
         return WappingAdd(baseAddr, RegisterY);
     }
 
     private byte GetZeroPageX()
     {
-        var baseAddr = _nesMemory.Read(ProgramCounter);
+        var baseAddr = _bus.Read(ProgramCounter);
         return WappingAdd(baseAddr, RegisterX);
     }
 
@@ -1854,19 +1855,19 @@ public class CPU
 
     private byte GetAddressZeroPage()
     {
-        return _nesMemory.Read(ProgramCounter);
+        return _bus.Read(ProgramCounter);
     }
 
     private ushort GetAddressAbsolute()
     {
-        return _nesMemory.ReadLittleEndian(ProgramCounter);
+        return _bus.ReadLittleEndian(ProgramCounter);
     }
 
     private ushort GetIndirectWithPageIncrementBug()
     {
-        var addr = _nesMemory.ReadLittleEndian(ProgramCounter);
-        var lo = _nesMemory.Read(addr);
-        var hi = _nesMemory.Read((ushort)((addr & 0xFF00) | ((addr + 1) & 0x00FF))); // Bug: não incrementa o byte alto
+        var addr = _bus.ReadLittleEndian(ProgramCounter);
+        var lo = _bus.Read(addr);
+        var hi = _bus.Read((ushort)((addr & 0xFF00) | ((addr + 1) & 0x00FF))); // Bug: não incrementa o byte alto
         return (ushort)((hi << 8) | lo);
     }
 
@@ -1878,28 +1879,28 @@ public class CPU
         var hi = (byte)(value >> 8);
         var lo = (byte)(value & 0x00FF);
 
-        _nesMemory.Write((ushort)(StackPointer + 0x0100), hi);
+        _bus.Write((ushort)(StackPointer + 0x0100), hi);
         StackPointer--;
-        _nesMemory.Write((ushort)(StackPointer + 0x0100), lo);
+        _bus.Write((ushort)(StackPointer + 0x0100), lo);
         StackPointer--;
     }
 
     private void PushStack(byte value)
     {
-        _nesMemory.Write((ushort)(StackPointer + 0x0100), value);
+        _bus.Write((ushort)(StackPointer + 0x0100), value);
         StackPointer--;
     }
 
     private byte PopStack()
     {
         StackPointer++;
-        byte value = _nesMemory.Read((ushort)(StackPointer + 0x0100));
+        byte value = _bus.Read((ushort)(StackPointer + 0x0100));
         return value;
     }
 
     private byte ReadStack()
     {
-        return _nesMemory.Read((ushort)(StackPointer + 0x0100));
+        return _bus.Read((ushort)(StackPointer + 0x0100));
     }
 
 

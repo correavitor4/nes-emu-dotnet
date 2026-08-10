@@ -2343,7 +2343,7 @@ public class InstructionsTests
         program[0x8000] = 0xCC; // Opcode CPY Absolute
         program[0x8001] = 0x34; // Low
         program[0x8002] = 0x12; // High
-        program[0x1234] = 0x80;
+        program[0x0234] = 0x80;
 
         var mem = NesMemory.FromBytesArray(program);
         var cpu = new NesEmu.CPU.CPU(mem);
@@ -2846,7 +2846,7 @@ public class InstructionsTests
         program[0x8000] = 0x59; // Opcode EOR Absolute, Y
         program[0x8001] = 0x00;
         program[0x8002] = 0x10;
-        program[0x1002] = 0xAA;
+        program[0x0002] = 0xAA;
 
         var mem = NesMemory.FromBytesArray(program);
         var cpu = new NesEmu.CPU.CPU(mem);
@@ -3747,14 +3747,19 @@ public class InstructionsTests
     [Fact]
     public void TestOra__AbsoluteY__ShouldIndexCorrectly()
     {
-        // Arrange: ORA $1000, Y (Y=2 -> Endereço $1002)
+        // Arrange
         var program = new byte[0x10000];
         program[0x8000] = 0x19; // Opcode ORA Absolute, Y
         program[0x8001] = 0x00;
         program[0x8002] = 0x10;
-        program[0x1002] = 0xAA;
-
+        
+        // Inicializa o barramento com as instruções na ROM (0x8000+)
         var mem = NesMemory.FromBytesArray(program);
+        
+        // NOVO: Usamos o método Write do Bus para injetar o valor na memória.
+        // O Bus vai converter 0x1002 para 0x0002 automaticamente por baixo dos panos!
+        mem.Write(0x0002, 0xAA);
+
         var cpu = new NesEmu.CPU.CPU(mem);
         cpu.ProgramCounter = 0x8000;
         cpu.RegisterY = 0x02;
@@ -4470,7 +4475,7 @@ public class InstructionsTests
         program[0x8000] = 0x3E;
         program[0x8001] = 0x00;
         program[0x8002] = 0x10;
-        program[0x1002] = 0x40;
+        program[0x0002] = 0x40;
 
         var mem = NesMemory.FromBytesArray(program);
         var cpu = new NesEmu.CPU.CPU(mem);
@@ -4482,7 +4487,7 @@ public class InstructionsTests
         cpu.Interpret(limit: 1);
 
         // Assert
-        Assert.Equal(0x81, mem.Read(0x1002));
+        Assert.Equal(0x81, mem.Read(0x0002));
         Assert.Equal(0x8003, cpu.ProgramCounter);
 
         var status = cpu.GetRegisterStatus();
@@ -4759,7 +4764,7 @@ public class InstructionsTests
         program[0x8000] = 0x7E;
         program[0x8001] = 0x00;
         program[0x8002] = 0x10;
-        program[0x1002] = 0x81;
+        program[0x0002] = 0x81;
 
         var mem = NesMemory.FromBytesArray(program);
         var cpu = new NesEmu.CPU.CPU(mem);
@@ -4771,7 +4776,7 @@ public class InstructionsTests
         cpu.Interpret(limit: 1);
 
         // Assert
-        Assert.Equal(0xC0, mem.Read(0x1002));
+        Assert.Equal(0xC0, mem.Read(0x0002));
         Assert.Equal(0x8003, cpu.ProgramCounter);
 
         var status = cpu.GetRegisterStatus();
@@ -5460,7 +5465,7 @@ public class InstructionsTests
         cpu.Interpret(limit: 1);
 
         // Assert
-        Assert.Equal(0x11, mem.Read(0x1234));
+        Assert.Equal(0x11, mem.Read(0x0234));
     }
 
     #endregion

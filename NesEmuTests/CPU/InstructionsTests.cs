@@ -3752,10 +3752,10 @@ public class InstructionsTests
         program[0x8000] = 0x19; // Opcode ORA Absolute, Y
         program[0x8001] = 0x00;
         program[0x8002] = 0x10;
-        
+
         // Inicializa o barramento com as instruções na ROM (0x8000+)
         var mem = NesMemory.FromBytesArray(program);
-        
+
         // NOVO: Usamos o método Write do Bus para injetar o valor na memória.
         // O Bus vai converter 0x1002 para 0x0002 automaticamente por baixo dos panos!
         mem.Write(0x0002, 0xAA);
@@ -4056,7 +4056,7 @@ public class InstructionsTests
 
         // Configura a pilha: coloca o valor 0x55 no endereço $01FF
         // E aponta o Stack Pointer para 0xFE (indicando que $01FF é o topo ocupado)
-        mem.Write(0x01FF, 0x55);
+        cpu._bus.Write(0x01FF, 0x55);
         cpu.SetStackPointer(0xFE);
 
         // Garante que o acumulador comece com outro valor
@@ -4118,7 +4118,7 @@ public class InstructionsTests
         var cpu = new NesEmu.CPU.CPU(mem);
         cpu.ProgramCounter = 0x8000;
 
-        mem.Write(0x01FF, 0x80);
+        cpu._bus.Write(0x01FF, 0x80);
         cpu.SetStackPointer(0xFE);
 
         // Act
@@ -4144,7 +4144,7 @@ public class InstructionsTests
         var cpu = new NesEmu.CPU.CPU(mem);
         cpu.ProgramCounter = 0x8000;
 
-        mem.Write(0x0100, 0x42); // Guarda no início físico da Página 1
+        cpu._bus.Write(0x0100, 0x42); // Guarda no início físico da Página 1
         cpu.SetStackPointer(0xFF);
 
         // Act
@@ -4197,7 +4197,7 @@ public class InstructionsTests
 
         // Escreve um valor de status controlado na pilha ($01FF)
         // 0b1100_0101 -> N=1, V=1, D=0, I=0, Z=1, C=1
-        mem.Write(0x01FF, 0b1100_0101);
+        cpu._bus.Write(0x01FF, 0b1100_0101);
         cpu.SetStackPointer(0xFE);
 
         cpu.SetStatusFlag(0x00);
@@ -4249,7 +4249,7 @@ public class InstructionsTests
         cpu.ProgramCounter = 0x8000;
 
         // 0b1000_0001 -> N=1, C=1
-        mem.Write(0x0100, 0b1000_0001);
+        cpu._bus.Write(0x0100, 0b1000_0001);
         cpu.SetStackPointer(0xFF);
         cpu.SetStatusFlag(0x00);
 
@@ -4259,7 +4259,7 @@ public class InstructionsTests
         // Assert
         Assert.Equal(0x00, cpu.GetStackPointer());
 
-        
+
         Assert.Equal(0b1010_0001, cpu.GetRegisterStatus());
     }
 
@@ -4834,9 +4834,9 @@ public class InstructionsTests
         // 3º Pop -> PC High (SP após pop: 0xFF) -> lido de $01FF
 
         cpu.SetStackPointer(0xFC);
-        mem.Write(0x01FD, 0b1000_0001); // Status
-        mem.Write(0x01FE, 0x50);         // PC Low
-        mem.Write(0x01FF, 0xC0);         // PC High
+        cpu._bus.Write(0x01FD, 0b1000_0001); // Status
+        cpu._bus.Write(0x01FE, 0x50);         // PC Low
+        cpu._bus.Write(0x01FF, 0xC0);         // PC High
 
         // Inicializa o estado da CPU diferente para provar que a restauração ocorreu
         cpu.SetStatusFlag(0x00);
@@ -4868,9 +4868,9 @@ public class InstructionsTests
 
         // Coloca na pilha um status contendo bits 4 e 5 ativos (0b0011_0000) e demais zerados
         cpu.SetStackPointer(0xFC);
-        mem.Write(0x01FD, 0b0011_0000); // Status na pilha
-        mem.Write(0x01FE, 0x00);         // PC Low ($1000)
-        mem.Write(0x01FF, 0x10);         // PC High
+        cpu._bus.Write(0x01FD, 0b0011_0000);// Status na pilha
+        cpu._bus.Write(0x01FE, 0x00);    // PC Low ($1000)
+        cpu._bus.Write(0x01FF, 0x10);// PC High
 
         cpu.SetStatusFlag(0xFF); // Inicia com todas as flags ativas na CPU
 
@@ -4901,9 +4901,9 @@ public class InstructionsTests
         // Pop 2 (PC Low): incrementa SP de 0xFF para 0x00 (Wrap-around!) -> lê de $0100
         // Pop 3 (PC High): incrementa SP de 0x00 para 0x01 -> lê de $0101
         cpu.SetStackPointer(0xFE);
-        mem.Write(0x01FF, 0b0100_0010); // Status (Overflow=1, Zero=1) -> 0x42
-        mem.Write(0x0100, 0x22);         // PC Low
-        mem.Write(0x0101, 0x99);         // PC High
+        cpu._bus.Write(0x01FF, 0b0100_0010); // Status (Overflow=1, Zero=1) -> 0x42
+        cpu._bus.Write(0x0100, 0x22);   // PC Low
+        cpu._bus.Write(0x0101, 0x99);    // PC High
 
         // Act
         cpu.Interpret(limit: 1);
@@ -4937,8 +4937,8 @@ public class InstructionsTests
         // Queremos que a CPU volte para $C050.
         // Como a JSR salva PC - 1, o que está empilhado é $C04F.
         cpu.SetStackPointer(0xFD);
-        mem.Write(0x01FE, 0x4F); // PC Low ($4F) será lido no primeiro PopStack()
-        mem.Write(0x01FF, 0xC0); // PC High ($C0) será lido no segundo PopStack()
+        cpu._bus.Write(0x01FE, 0x4F); // PC Low ($4F) será lido no primeiro PopStack()
+        cpu._bus.Write(0x01FF, 0xC0); // PC High ($C0) será lido no segundo PopStack()
 
         // Act
         cpu.Interpret(limit: 1);
@@ -4964,8 +4964,8 @@ public class InstructionsTests
 
         // A JSR salvou $01FF. Queremos retornar para $0200.
         cpu.SetStackPointer(0xFD);
-        mem.Write(0x01FE, 0xFF); // PC Low
-        mem.Write(0x01FF, 0x01); // PC High
+        cpu._bus.Write(0x01FE, 0xFF); // PC Low
+        cpu._bus.Write(0x01FF, 0x01); // PC High
 
         // Act
         cpu.Interpret(limit: 1);
@@ -4988,8 +4988,8 @@ public class InstructionsTests
 
         // A JSR salvou $404F na pilha. Retorno será em $4050.
         cpu.SetStackPointer(0xFD);
-        mem.Write(0x01FE, 0x4F); // PC Low
-        mem.Write(0x01FF, 0x40); // PC High
+        cpu._bus.Write(0x01FE, 0x4F); // PC Low
+        cpu._bus.Write(0x01FF, 0x40); // PC High
 
         // Configura estado sujo para garantir que a instrução RTS não altera o resto da CPU
         cpu.RegisterA = 0x55;
@@ -5401,8 +5401,8 @@ public class InstructionsTests
         cpu.ProgramCounter = 0x8000;
 
         // Configura o ponteiro na Zero Page (em $10 e $11) para apontar para $4000
-        mem.Write(0x0010, 0x00); // Low byte
-        mem.Write(0x0011, 0x40); // High byte
+        cpu._bus.Write(0x0010, 0x00); // Low byte
+        cpu._bus.Write(0x0011, 0x40); // High byte
 
         cpu.RegisterA = 0x77;
         cpu.RegisterY = 0x08; // Offset Y = 8. Endereço final deve ser $4000 + 8 = $4008.

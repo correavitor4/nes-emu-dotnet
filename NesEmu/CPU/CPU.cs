@@ -13,7 +13,7 @@ public class CPU
     public ushort ProgramCounter = 0;
     private byte StackPointer = 0xFF;
 
-    private readonly Bus _bus;
+    public readonly Bus _bus;
     private Dictionary<byte, Action> _instructions = new Dictionary<byte, Action>();
 
     public CPU(Memory.NesMemory nesMemory)

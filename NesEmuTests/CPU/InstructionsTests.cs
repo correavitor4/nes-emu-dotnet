@@ -5,8 +5,21 @@ using NesEmu.Memory;
 
 namespace NesEmuTests.CPU;
 
-public class InstructionsTests
+public class InstructionsTests : IDisposable
 {
+
+
+    public InstructionsTests()
+    {
+        Environment.SetEnvironmentVariable("ALLOW_WRITE_ROM", "true");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("ALLOW_WRITE_ROM", null);
+    }
+
+
     #region LDA
 
     [Fact]

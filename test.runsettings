@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <!-- Aqui você define as variáveis exclusivas para os testes -->
+      <NES_ENV>TEST</NES_ENV>
+      <ALLOW_WRITE_ROM>true</ALLOW_WRITE_ROM>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

@@ -13,13 +13,24 @@ namespace NesEmu.BUS
     {
         // TODO: tentar eliminar essa variável;
         private readonly NesMemory memory;
-        private readonly ROM rom;
+        private readonly ROM Rom;
         public readonly byte[] CpuVram;
+
+        private readonly bool allowWriteRom;
+
 
         public Bus(NesMemory nesMemory)
         {
             memory = nesMemory;
             CpuVram = [.. nesMemory.MemorySpace.Take(2048)];
+            allowWriteRom = Environment.GetEnvironmentVariable("ALLOW_WRITE_ROM") == "true";
+        }
+
+        public Bus(ROM rom)
+        {
+            CpuVram = new byte[2048];
+            this.Rom = rom;
+            allowWriteRom = Environment.GetEnvironmentVariable("ALLOW_WRITE_ROM") == "true";
         }
 
         public int MemoryLength
@@ -37,12 +48,29 @@ namespace NesEmu.BUS
             if (addr < 0x0000)
                 throw new InvalidAddressException($"Address cannot be lower than zero");
 
-            if (addr < 0x1FFF)
+            if (addr <= 0x1FFF)
                 return ReadCpuRam(addr);
+
+            if (addr >= 0x8000 && addr <= 0xFFFF)
+            {
+                if (Rom == null) return memory.Read(addr);
+                return ReadPrgRom(addr);
+            }
 
             return memory.Read(addr);
 
             throw new InvalidAddressException("Value cannot be greater than 0xFFFF");
+        }
+
+        private byte ReadPrgRom(ushort addr)
+        {
+
+            addr -= 0x8000;
+            if (Rom.prgRom.Count == 0x4000 && addr >= 0x4000)
+            {
+                addr = (ushort)(addr % 0x4000);
+            }
+            return Rom.prgRom[addr];
         }
 
         public ushort ReadLittleEndian(ushort addr)
@@ -69,6 +97,18 @@ namespace NesEmu.BUS
             {
                 WriteCpuRam(addr, value);
                 return;
+            }
+
+            if (addr >= 0x8000 && addr <= 0xFFFF)
+            {
+                if (allowWriteRom)
+                {
+                    Rom?.prgRom[addr - 0x8000] = value;
+                    memory.Write(addr, value);
+                    return;
+                }
+
+                throw new InvalidAddressException("Cannot write PrgRom cause it's Read Only");
             }
 
             memory.Write(addr, value);
@@ -101,6 +141,7 @@ namespace NesEmu.BUS
         [Conditional("DEBUG")]
         private void SyncMemoryForTests(ushort originalAddr, ushort mirroredAddr, byte value)
         {
+            if (memory is null) return;
             memory.Write(mirroredAddr, value);
             memory.Write(originalAddr, value);
         }

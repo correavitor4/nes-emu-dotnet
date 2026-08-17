@@ -9,7 +9,7 @@ using NesEmu.Memory;
 
 namespace NesEmu.BUS
 {
-    public class Bus
+    public class NesBus
     {
         // TODO: tentar eliminar essa variável;
         private readonly NesMemory memory;
@@ -19,14 +19,14 @@ namespace NesEmu.BUS
         private readonly bool allowWriteRom;
 
 
-        public Bus(NesMemory nesMemory)
+        public NesBus(NesMemory nesMemory)
         {
             memory = nesMemory;
             CpuVram = [.. nesMemory.MemorySpace.Take(2048)];
             allowWriteRom = Environment.GetEnvironmentVariable("ALLOW_WRITE_ROM") == "true";
         }
 
-        public Bus(ROM rom)
+        public NesBus(ROM rom)
         {
             CpuVram = new byte[2048];
             this.Rom = rom;
@@ -66,11 +66,11 @@ namespace NesEmu.BUS
         {
 
             addr -= 0x8000;
-            if (Rom.prgRom.Count == 0x4000 && addr >= 0x4000)
+            if (Rom.PrgRom.Length == 0x4000 && addr >= 0x4000)
             {
                 addr = (ushort)(addr % 0x4000);
             }
-            return Rom.prgRom[addr];
+            return Rom.PrgRom[addr];
         }
 
         public ushort ReadLittleEndian(ushort addr)
@@ -103,7 +103,7 @@ namespace NesEmu.BUS
             {
                 if (allowWriteRom)
                 {
-                    Rom?.prgRom[addr - 0x8000] = value;
+                    Rom?.PrgRom[addr - 0x8000] = value;
                     memory.Write(addr, value);
                     return;
                 }

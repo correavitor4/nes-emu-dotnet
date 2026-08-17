@@ -8,8 +8,6 @@ namespace NesEmu.Cartridges
 {
     public class ROM
     {
-        public List<byte> prgRom;
-        public List<byte> chrRom;
         public byte Mapper { get; private set; }
         public ScreenMirroring screenMirroring;
         private static readonly byte[] NES_TAG = [0x4E, 0x45, 0x53, 0x1A];

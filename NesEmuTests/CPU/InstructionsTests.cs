@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 using Moq;
 using NesEmu.CPU;
 using NesEmu.Memory;
+using Xunit;
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace NesEmuTests.CPU;
 

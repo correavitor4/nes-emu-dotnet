@@ -13,12 +13,12 @@ public class CPU
     public ushort ProgramCounter = 0;
     private byte StackPointer = 0xFF;
 
-    public readonly Bus _bus;
+    public readonly NesBus _bus;
     private Dictionary<byte, Action> _instructions = new Dictionary<byte, Action>();
 
     public CPU(Memory.NesMemory nesMemory)
     {
-        _bus = new Bus(nesMemory);
+        _bus = new NesBus(nesMemory);
         RegisterInstructions();
     }
 
